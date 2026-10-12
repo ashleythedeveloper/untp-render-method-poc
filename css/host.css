@@ -391,6 +391,11 @@ dialog h2 {
   font-size: 1.1rem;
 }
 
+.confirm-name {
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
 .confirm-url {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   overflow-wrap: anywhere;

@@ -272,7 +272,9 @@ export function buildWrapper({ templateHtml, credentialText, resources }) {
 // pointer against the credential the host holds. Returns one of
 //   { action: 'ignore', reason }   not an open-link message with a pointer
 //   { action: 'refuse', pointer, reason }
-//   { action: 'open', pointer, url }
+//   { action: 'open', pointer, url, name? }
+// name is the linkName (or name) of the object that holds the URL, for the
+// host's confirmation dialog.
 export function decideOpenLink(credential, message) {
   if (!message || typeof message !== 'object' || message.type !== 'open-link') {
     return { action: 'ignore', reason: 'not an open-link message' };
@@ -293,17 +295,31 @@ export function decideOpenLink(credential, message) {
   } catch {
     return { action: 'refuse', pointer, reason: 'value at pointer is not a valid URL: ' + value };
   }
-  return { action: 'open', pointer, url: value };
+  // The holder is the object one step up the pointer ("~1" escapes "/", so
+  // the last "/" always ends the parent pointer).
+  const holder = resolvePointer(credential, pointer.slice(0, pointer.lastIndexOf('/'))).value;
+  const decision = { action: 'open', pointer, url: value };
+  if (holder && typeof holder === 'object' && !Array.isArray(holder)) {
+    const name = typeof holder.linkName === 'string' ? holder.linkName : holder.name;
+    if (typeof name === 'string' && name.trim() !== '') decision.name = name;
+  }
+  return decision;
 }
 
-// True when url is on the given origin (the PoC's own pages open directly in
-// a new tab; anything else needs the reader's confirmation).
+// True when url is on the given origin.
 export function isSameOrigin(url, origin) {
   try {
     return new URL(url).origin === origin;
   } catch {
     return false;
   }
+}
+
+// The window.open features for a link the reader has confirmed. The PoC's own
+// pages open as the same application (no features); every other origin opens
+// with noopener and noreferrer.
+export function openFeatures(target, origin) {
+  return isSameOrigin(target, origin) ? '' : 'noopener,noreferrer';
 }
 
 // ---------------------------------------------------------------------------

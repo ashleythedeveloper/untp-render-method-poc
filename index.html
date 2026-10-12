@@ -72,9 +72,10 @@
 
   <dialog id="confirm-link" aria-labelledby="confirm-heading">
     <form method="dialog">
-      <h2 id="confirm-heading">Open external link?</h2>
+      <h2 id="confirm-heading">Open link?</h2>
+      <p id="confirm-name" class="confirm-name" hidden></p>
       <p id="confirm-url" class="confirm-url"></p>
-      <p id="confirm-note" class="confirm-note">The credential links to this address. It opens in a new tab, without a referrer and without access to this page.</p>
+      <p id="confirm-note" class="confirm-note"></p>
       <div class="confirm-actions">
         <button value="cancel">Cancel</button>
         <button value="open" class="primary">Open in new tab</button>

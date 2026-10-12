@@ -27,6 +27,7 @@ import {
   escapeScriptData,
   filterByRenderProperty,
   isSameOrigin,
+  openFeatures,
   parsePointer,
   parseVerifyParams,
   planRenderResources,
@@ -122,22 +123,40 @@ await test('Host-mediated links: pointers that do not resolve, or resolve to obj
   assert.equal(decideOpenLink(dpp, { type: 'open-link', pointer: '' }).action, 'refuse');
 });
 
-await test('Host-mediated links: the DPP relatedDocument link is on the PoC origin, so the host opens it directly in a new tab', () => {
+await test('Host-mediated links: the DPP relatedDocument link resolves to the PoC verify URL with its link name, for the confirmation dialog', () => {
   const decision = decideOpenLink(dpp, { type: 'open-link', pointer: '/credentialSubject/relatedDocument/0/linkURL' });
-  assert.equal(decision.action, 'open');
-  assert.equal(decision.url, DCC_VERIFY_URL);
-  assert.equal(isSameOrigin(toFetchUrl(decision.url, BASE_URL), BASE_URL), true);
-  // Served locally, the production base maps to the local origin first.
-  assert.equal(isSameOrigin(toFetchUrl(decision.url, 'http://localhost:3000'), 'http://localhost:3000'), true);
+  assert.deepEqual(decision, {
+    action: 'open',
+    pointer: '/credentialSubject/relatedDocument/0/linkURL',
+    url: DCC_VERIFY_URL,
+    name: dpp.credentialSubject.relatedDocument[0].linkName
+  });
+  const facility = decideOpenLink(dpp, { type: 'open-link', pointer: '/credentialSubject/producedAtFacility/id' });
+  assert.equal(facility.name, 'Sample Copper Refinery');
+  const issuer = decideOpenLink({ issuer: 'https://issuer.example' }, { type: 'open-link', pointer: '/issuer' });
+  assert.equal(issuer.name, undefined);
 });
 
-await test('Host-mediated links: a link on another origin is external, so the host asks the reader to confirm before opening it', () => {
-  const decision = decideOpenLink(dpp, { type: 'open-link', pointer: '/credentialSubject/producedAtFacility/id' });
-  assert.equal(decision.action, 'open');
-  assert.equal(decision.url, 'https://facility-register.example.com/fac-002');
-  assert.equal(isSameOrigin(toFetchUrl(decision.url, BASE_URL), BASE_URL), false);
-  assert.equal(isSameOrigin('https://untp-render-method-poc.vercel.app.evil.example/verify', BASE_URL), false);
+await test('Host-mediated links: after confirmation an own-origin link opens as the same app and any other origin with noopener and noreferrer', () => {
+  assert.equal(openFeatures(toFetchUrl(DCC_VERIFY_URL, BASE_URL), BASE_URL), '');
+  assert.equal(openFeatures(toFetchUrl(DCC_VERIFY_URL, 'http://localhost:3000'), 'http://localhost:3000'), '');
+  assert.equal(openFeatures('https://facility-register.example.com/fac-002', BASE_URL), 'noopener,noreferrer');
+  assert.equal(openFeatures('https://untp-render-method-poc.vercel.app.evil.example/verify', BASE_URL), 'noopener,noreferrer');
   assert.equal(isSameOrigin('not a url', BASE_URL), false);
+});
+
+await test('Host page: every resolved link, own-origin included, goes through the confirmation dialog before anything opens', () => {
+  // A source check: the host page needs a browser to run, so this asserts its
+  // single path instead. handleOpenLink only calls confirmLink, and the one
+  // window.open call sits after the dialog's "open" check.
+  const hostSource = readText('js/host.js');
+  const handler = hostSource.slice(hostSource.indexOf('async function handleOpenLink'), hostSource.indexOf('function confirmLink'));
+  assert.match(handler, /confirmLink\(toFetchUrl\(decision\.url\), decision\.name\)/);
+  assert.equal(/window\.open|isSameOrigin|openFeatures/.test(handler), false);
+  assert.equal((hostSource.match(/window\.open\(/g) || []).length, 1, 'window.open must only be called from the dialog');
+  const dialog = hostSource.slice(hostSource.indexOf('function confirmLink'));
+  assert.ok(dialog.indexOf("returnValue !== 'open'") > 0 && dialog.indexOf("returnValue !== 'open'") < dialog.indexOf('window.open('));
+  assert.ok(dialog.indexOf('showModal()') > 0);
 });
 
 // ---------------------------------------------------------------------------

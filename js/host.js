@@ -13,7 +13,7 @@ import {
   decideOpenLink,
   filterByRenderProperty,
   imageDataUrl,
-  isSameOrigin,
+  openFeatures,
   parseVerifyParams,
   planRenderResources,
   selectHtmlRenderMethod,
@@ -27,7 +27,7 @@ const renderError = document.getElementById('render-error');
 const viewer = document.getElementById('viewer');
 const activity = document.getElementById('activity');
 const confirmDialog = document.getElementById('confirm-link');
-const confirmHeading = document.getElementById('confirm-heading');
+const confirmName = document.getElementById('confirm-name');
 const confirmUrl = document.getElementById('confirm-url');
 const confirmNote = document.getElementById('confirm-note');
 const tabs = [document.getElementById('tab-rendered'), document.getElementById('tab-json')];
@@ -376,53 +376,35 @@ async function handleOpenLink(credential, message) {
     return;
   }
   log('links', 'info', 'open-link ' + decision.pointer + ' resolves to ' + decision.url + '.');
-  // Every link opens in a new tab. The PoC's own pages (a verify URL for a
-  // linked credential, for example) open directly; anything else is confirmed.
-  const target = toFetchUrl(decision.url);
-  if (isSameOrigin(target, location.origin)) {
-    openOwnTab(target);
-    return;
-  }
-  confirmLink(decision.url, false);
+  // Every link waits for the reader's confirmation, then opens in a new tab.
+  confirmLink(toFetchUrl(decision.url), decision.name);
 }
 
-// Opens one of the PoC's own pages in a new tab, without noopener because it
-// is the same application.
-function openOwnTab(target) {
-  log('links', 'info', 'The link is on this proof of concept\'s own origin: opening ' + target + ' in a new tab.');
-  const opened = window.open(target, '_blank');
-  if (opened) {
-    log('links', 'ok', 'Opened ' + target + ' in a new tab.');
-    return;
-  }
-  log('links', 'info', 'The browser blocked the new tab, so the host asks the reader to open it.');
-  confirmLink(target, true);
-}
-
-// The host's own dialog. For an external link it asks before opening the
-// address with noopener and noreferrer. For one of the PoC's own pages whose
-// new tab the browser blocked, it offers the button that opens it.
-function confirmLink(target, ownPage) {
+// The host's own dialog, shown for every link. On "Open in new tab" the PoC's
+// own pages (a verify URL, for example) open as the same application, and
+// every other address opens with noopener and noreferrer.
+function confirmLink(target, name) {
   if (confirmDialog.open) {
     log('links', 'ignored', 'A dialog is already open; ignored the request to open ' + target + '.');
     return;
   }
-  confirmHeading.textContent = ownPage ? 'Open linked page?' : 'Open external link?';
+  const features = openFeatures(target, location.origin);
+  confirmName.textContent = name || '';
+  confirmName.hidden = !name;
   confirmUrl.textContent = target;
-  confirmNote.textContent = ownPage
-    ? 'The credential links to another page of this proof of concept. It opens in a new tab.'
-    : 'The credential links to this address. It opens in a new tab, without a referrer and without access to this page.';
+  confirmNote.textContent = features
+    ? 'It opens in a new tab, without a referrer and without access to this page.'
+    : 'This is a page of this proof of concept. It opens in a new tab.';
   confirmDialog.returnValue = '';
   confirmDialog.onclose = () => {
     if (confirmDialog.returnValue !== 'open') {
       log('links', 'info', 'Reader cancelled opening ' + target + '.');
       return;
     }
-    if (ownPage) window.open(target, '_blank');
-    else window.open(target, '_blank', 'noopener,noreferrer');
-    log('links', 'ok', 'Reader confirmed: opened ' + target + ' in a new tab.');
+    window.open(target, '_blank', features);
+    log('links', 'ok', 'Reader confirmed: opened ' + target + ' in a new tab' + (features ? ' with ' + features : '') + '.');
   };
-  if (!ownPage) log('links', 'info', 'Not on this proof of concept\'s origin: asking the reader to confirm the external link.');
+  log('links', 'info', 'Asking the reader to confirm before opening ' + target + '.');
   confirmDialog.showModal();
 }
 

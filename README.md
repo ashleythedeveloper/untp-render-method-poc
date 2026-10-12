@@ -2,7 +2,7 @@
 
 A static web page that renders [UN Transparency Protocol](https://untp.unece.org) (UNTP) credentials with the W3C `html` render suite, as specified in [Verifiable Credential Rendering Methods v1.0, W3C Working Draft of 6 October 2026](https://www.w3.org/TR/2026/WD-vc-render-method-20261006/) (the WD below). It adds two extensions, named the same way throughout the code and the page:
 
-- **Host-mediated links.** Clicking a link in a rendered credential sends the host page a JSON Pointer into the credential. The host resolves the pointer itself and opens the address in a new tab: the PoC's own pages (such as the verify URL of the linked Digital Conformity Credential) directly, anything else after the reader confirms. The template frame never navigates.
+- **Host-mediated links.** Clicking a link in a rendered credential sends the host page a JSON Pointer into the credential. The host resolves the pointer itself, shows its own confirmation with the destination, and only then opens the address in a new tab. The template frame never navigates.
 - **Host-prefetched images.** Before rendering, the host fetches the images the issuer lists in the render method's `renderResource` property, checks each one against its `digestMultibase`, and passes them to the template in a separate data block keyed by the original URL. The credential the template receives is the issuer's credential, unmodified.
 
 An activity panel beside the rendered credential lists every step: the template fetch and digest check, each declared image and what happened to it, and each link request and how the host handled it.
@@ -16,7 +16,7 @@ This is a demonstration for discussion, not production code. The parts the WD ma
 ## What to try
 
 1. Open the page and choose **Digital Product Passport**. The page moves to that credential's verify URL (see below). The activity panel shows the template fetched and its digest checked, the product image declared in `renderResource`, fetched and checked, and the template reporting ready.
-2. Scroll to **Related Documents** and click the conformity credential link. The host resolves the pointer `/credentialSubject/relatedDocument/0/linkURL` to the DCC's verify URL on this site and opens it in a new tab, which fetches the DCC, checks it against the `digestMultibase` in the URL and renders it. If the browser blocks the new tab, the host shows a dialog with an **Open in new tab** button.
+2. Scroll to **Related Documents** and click the conformity credential link. The host resolves the pointer `/credentialSubject/relatedDocument/0/linkURL` to the DCC's verify URL on this site and shows its confirmation dialog with the link name and the address. **Open in new tab** opens the verify page, which fetches the DCC, checks it against the `digestMultibase` in the URL and renders it.
 3. Click any other link, for example the facility under **Produced at**. The host shows its own confirmation with the address before opening anything. Most sample addresses are fictitious, so the new tab may not load a real page.
 
 ## What follows the Working Draft
@@ -46,13 +46,13 @@ Both extensions keep the WD's security model intact. The sandbox is not relaxed,
 
 The wrapper, which the host writes, defines `window.renderMethodOpenLink(pointer)`. It posts `{type: 'open-link', pointer}` on the same port as `ready`. The templates call it from a link's click handler when it exists, and otherwise leave the link alone, so in a strict renderer they behave exactly as before.
 
-The host resolves the pointer (RFC 6901) against the credential it holds, never against anything the frame supplies. It acts only when the value there is a single absolute `https:` URL string, and logs a refusal otherwise. A message that carries a URL instead of a pointer is ignored. Every link opens in a new browser tab; there is no in-place navigation. When the address is on the PoC's own origin (a verify URL for a linked credential, for example), the host opens it with `window.open(url, '_blank')`, and if the browser blocks that, shows a dialog whose **Open in new tab** button opens it. Any other address needs the reader's confirmation in a host dialog, then opens with `window.open(url, '_blank', 'noopener,noreferrer')`.
+The host resolves the pointer (RFC 6901) against the credential it holds, never against anything the frame supplies. It acts only when the value there is a single absolute `https:` URL string, and logs a refusal otherwise. A message that carries a URL instead of a pointer is ignored. Every link first shows the host's **Open link?** dialog with the destination address, and the link's `linkName` or `name` when the object holding the URL has one. Nothing opens until the reader chooses **Open in new tab**; there is no in-place navigation. The PoC's own pages (a verify URL for a linked credential, for example) then open with `window.open(url, '_blank')`, as the same application. Every other address opens with `window.open(url, '_blank', 'noopener,noreferrer')`.
 
 Why this shape: the template can name a place in the signed credential but can never build a URL, so it cannot encode credential data into an address or send the reader somewhere the issuer did not write. The host stays in charge of every navigation.
 
 When the host offers `renderMethodOpenLink`, a named link that it will follow (an `https:` URL with a pointer) shows only its name, with the URL as its hover title. Without the hook the templates keep the URL visible as text beside the name, because in a strict renderer the click does nothing and the reader needs the address.
 
-Code: `decideOpenLink` and `isSameOrigin` in `js/core.js`, `handleOpenLink`, `openOwnTab` and `confirmLink` in `js/host.js`, and the `hostFollows()` and `link()` helpers in both templates.
+Code: `decideOpenLink` and `openFeatures` in `js/core.js`, `handleOpenLink` and `confirmLink` in `js/host.js`, and the `hostFollows()` and `link()` helpers in both templates.
 
 ### The verify URL
 
@@ -125,7 +125,7 @@ node scripts/test.mjs
 node scripts/build-digests.mjs --check
 ```
 
-`scripts/test.mjs` uses Node built-ins only. It checks pointer resolution and the host-mediated link refusal rules, the digest computation against the digests recorded in the credentials, the wrapper's credential block and escaping, the verify URL parameters and its digest refusal, own-origin and external link handling, the host-prefetched image `renderResource` rules, and runs the real wrapper script and both templates against a small DOM stand-in to confirm that every credential link sends the pointer of its own URL and that the image path and its fallback work. It is not a browser test: the sandbox and CSP behaviour can only be observed in a browser.
+`scripts/test.mjs` uses Node built-ins only. It checks pointer resolution and the host-mediated link refusal rules, the digest computation against the digests recorded in the credentials, the wrapper's credential block and escaping, the verify URL parameters and its digest refusal, the confirmation-first link handling and its window features, the host-prefetched image `renderResource` rules, and runs the real wrapper script and both templates against a small DOM stand-in to confirm that every credential link sends the pointer of its own URL and that the image path and its fallback work. It is not a browser test: the sandbox and CSP behaviour can only be observed in a browser.
 
 ## Deploy
 
