@@ -1,0 +1,759 @@
+<div class="untp-dpp">
+  <!--
+    UNTP Digital Product Passport, v0.8.0 data model. Template version 1.0.0.
+    An HTML fragment for the W3C html render suite (Verifiable Credential
+    Rendering Methods, Working Draft of 6 October 2026, section 2.2.2). The
+    script below reads the credential from the wrapper's
+    <script name="credential" type="application/vc"> data block, builds the
+    page with textContent only, and calls window.renderMethodReady(). Nothing
+    is fetched at render time.
+
+    Proof-of-concept copy. The changes for the PoC's two extensions to the
+    Working Draft are marked "PoC extension: host-mediated links" and
+    "PoC extension: host-prefetched images".
+  -->
+  <style>
+    .untp-dpp {
+      --color-primary: rgba(31, 90, 149, 1);
+      --color-white: rgba(255, 255, 255, 1);
+      --color-black: rgba(0, 0, 0, 1);
+      --color-gray-700: rgba(35, 46, 61, 1);
+      --color-gray-600: rgba(85, 96, 110, 1);
+      --color-gray-400: rgba(212, 214, 216, 1);
+      --color-gray-100: rgba(247, 250, 253, 1);
+      --color-icon: rgba(31, 90, 149, 1);
+      --font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-weight-light: 300;
+      --font-weight-regular: 400;
+      --font-weight-medium: 500;
+      --font-weight-bold: 600;
+      --font-weight-black: 900;
+      font-family: var(--font-family);
+      color: var(--color-gray-600);
+      font-weight: var(--font-weight-regular);
+    }
+
+    .untp-dpp * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .untp-dpp .capitalize-first {
+      text-transform: capitalize;
+    }
+
+    .untp-dpp .container {
+      min-width: 150px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      word-break: break-word;
+      background-color: var(--color-white);
+    }
+
+    .untp-dpp section,
+    .untp-dpp header,
+    .untp-dpp footer {
+      padding: 0 16px;
+    }
+
+    .untp-dpp .header {
+      padding: 0;
+    }
+
+    .untp-dpp .header-image {
+      background-color: var(--color-gray-600);
+      background-image: linear-gradient(248.36deg, rgba(0, 0, 0, 0.18) 7.6%, rgba(0, 0, 0, 0.6) 70.52%), var(--image-src, none);
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      height: 232px;
+      position: relative;
+    }
+
+    .untp-dpp .header-image-top-left {
+      position: absolute;
+      top: 25px;
+      left: 15px;
+      font-weight: var(--font-weight-medium);
+      font-size: 16px;
+      line-height: 22px;
+      color: var(--color-white);
+    }
+
+    .untp-dpp .header-image-bottom-left {
+      position: absolute;
+      bottom: 18px;
+      left: 15px;
+      right: 15px;
+      color: var(--color-white);
+    }
+
+    .untp-dpp .header-image-bottom-left h1 {
+      font-size: 30px;
+      font-weight: var(--font-weight-black);
+      line-height: 32.5px;
+    }
+
+    .untp-dpp .header-batch {
+      padding: 12px 16px;
+      background-color: var(--color-gray-100);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .untp-dpp .header-batch-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-grow: 1;
+      min-width: 0;
+      color: var(--color-gray-700);
+      font-size: 14px;
+      font-weight: var(--font-weight-medium);
+    }
+
+    .untp-dpp .header-batch-item a {
+      color: var(--color-gray-700);
+    }
+
+    .untp-dpp .header-batch-item svg {
+      flex-shrink: 0;
+      fill: var(--color-icon);
+    }
+
+    .untp-dpp .section-title {
+      font-size: 18px;
+      font-weight: var(--font-weight-bold);
+      line-height: 19.62px;
+      color: var(--color-gray-700);
+    }
+
+    .untp-dpp .section-description {
+      margin-top: 12px;
+      font-size: 16px;
+      line-height: 18.88px;
+      color: var(--color-black);
+    }
+
+    .untp-dpp .table {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .untp-dpp .table-item {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      column-gap: 16px;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--color-gray-400);
+    }
+
+    .untp-dpp .table-item > span {
+      font-size: 16px;
+      color: var(--color-gray-600);
+    }
+
+    .untp-dpp .item-value {
+      display: flex;
+      flex-direction: column;
+      font-size: 16px;
+      font-weight: var(--font-weight-medium);
+      color: var(--color-gray-700);
+    }
+
+    .untp-dpp .id-text {
+      font-size: 13px;
+      font-weight: var(--font-weight-regular);
+      color: var(--color-gray-600);
+      word-break: break-all;
+    }
+
+    .untp-dpp .information-text {
+      font-size: 19px;
+      padding-bottom: 8px;
+      font-weight: var(--font-weight-light);
+      color: var(--color-black);
+      line-height: 22.42px;
+    }
+
+    .untp-dpp .production,
+    .untp-dpp .declarations,
+    .untp-dpp .issued-by {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .untp-dpp .cards-conformities {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .untp-dpp .cards-conformity {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 16px;
+      background-color: var(--color-white);
+      border: 1px solid var(--color-gray-400);
+      border-radius: 4px;
+    }
+
+    .untp-dpp .claim-name {
+      font-size: 18px;
+      color: var(--color-primary);
+    }
+
+    .untp-dpp .conformity-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .untp-dpp .conformity-info p {
+      font-size: 14px;
+      color: var(--color-gray-600);
+    }
+
+    .untp-dpp .conformity-topic-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background-color: var(--color-gray-100);
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--color-primary);
+      margin-right: 4px;
+      margin-bottom: 4px;
+    }
+
+    .untp-dpp .conformity-info p.performance-item {
+      font-size: 16px;
+      color: var(--color-gray-700);
+    }
+
+    .untp-dpp .composition-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .untp-dpp .composition-box-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      border: 1px solid var(--color-gray-400);
+      border-radius: 4px;
+      padding: 16px;
+    }
+
+    .untp-dpp .composition-first-column {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 12px;
+    }
+
+    .untp-dpp .composition-percent {
+      font-size: 16px;
+      font-weight: var(--font-weight-medium);
+      color: var(--color-black);
+    }
+
+    .untp-dpp .composition-title {
+      font-size: 16px;
+      font-weight: var(--font-weight-bold);
+      color: var(--color-black);
+    }
+
+    .untp-dpp .composition-type {
+      font-size: 13px;
+      color: var(--color-gray-600);
+    }
+
+    .untp-dpp .composition-tag {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .untp-dpp .composition-tag-item {
+      font-size: 14px;
+      color: var(--color-black);
+      background-color: var(--color-gray-100);
+      padding: 2px 4px;
+    }
+
+    .untp-dpp .country-code {
+      font-size: 14px;
+      color: var(--color-gray-600);
+    }
+
+    .untp-dpp footer {
+      padding: 16px 16px 32px;
+      background-color: var(--color-gray-100);
+    }
+
+    .untp-dpp footer p {
+      font-size: 14px;
+      color: var(--color-gray-600);
+    }
+
+    .untp-dpp .blue-bottom-line-thick {
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-decoration-color: rgba(79, 149, 221, 1);
+      text-underline-offset: 3px;
+      color: var(--color-gray-700);
+    }
+
+    .untp-dpp .gray-bottom-line {
+      border-bottom: 1px solid var(--color-gray-600);
+      text-decoration: none;
+      color: var(--color-gray-600);
+    }
+
+    @media (min-width: 1200px) {
+      .untp-dpp .container {
+        max-width: 1200px;
+      }
+    }
+  </style>
+
+  <div class="container" id="untp-dpp-root"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var TAG_ICON = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M2.45 3.5C2.17152 3.5 1.90445 3.38938 1.70754 3.19246C1.51062 2.99555 1.4 2.72848 1.4 2.45C1.4 2.17152 1.51062 1.90445 1.70754 1.70754C1.90445 1.51062 2.17152 1.4 2.45 1.4C2.72848 1.4 2.99555 1.51062 3.19246 1.70754C3.38938 1.90445 3.5 2.17152 3.5 2.45C3.5 2.72848 3.38938 2.99555 3.19246 3.19246C2.99555 3.38938 2.72848 3.5 2.45 3.5ZM13.587 6.706L7.287 0.406C7.035 0.154 6.685 0 6.3 0H1.4C0.623 0 0 0.623 0 1.4V6.3C0 6.685 0.154 7.035 0.413 7.287L6.706 13.587C6.965 13.839 7.315 14 7.7 14C8.085 14 8.435 13.839 8.687 13.587L13.587 8.687C13.846 8.435 14 8.085 14 7.7C14 7.308 13.839 6.958 13.587 6.706Z"/></svg>';
+
+      function ready(err) {
+        if (typeof window.renderMethodReady === 'function') {
+          window.renderMethodReady(err);
+        }
+      }
+
+      // A value counts as present unless it is undefined, null, a blank
+      // string or an empty array. Absent values produce no row and no label.
+      function has(value) {
+        if (value === undefined || value === null) return false;
+        if (typeof value === 'string') return value.trim() !== '';
+        if (Array.isArray(value)) return value.some(has);
+        return true;
+      }
+
+      function list(value) {
+        return has(value) ? [].concat(value).filter(has) : [];
+      }
+
+      // PoC extension: host-mediated links
+      // The JSON Pointer (RFC 6901) of a credential value,
+      // so a link can name where its URL came from instead of the URL itself.
+      function at(pointer, key) {
+        return pointer + '/' + String(key).replace(/~/g, '~0').replace(/\//g, '~1');
+      }
+
+      // PoC extension: host-mediated links
+      // Like list(), but keeping each item's pointer.
+      function listAt(value, pointer) {
+        if (!has(value)) return [];
+        if (!Array.isArray(value)) return [{ value: value, pointer: pointer }];
+        return value
+          .map(function (item, i) { return { value: item, pointer: at(pointer, i) }; })
+          .filter(function (item) { return has(item.value); });
+      }
+
+      function el(tag, className, text) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (has(text)) node.textContent = String(text);
+        return node;
+      }
+
+      function append(parent, children) {
+        children.forEach(function (child) {
+          if (child) parent.appendChild(child);
+        });
+        return parent;
+      }
+
+      function icon(markup) {
+        var holder = document.createElement('template');
+        holder.innerHTML = markup;
+        return holder.content.firstChild;
+      }
+
+      function measure(m) {
+        if (!m || typeof m.value !== 'number') return '';
+        return has(m.unit) ? m.value + ' ' + m.unit : String(m.value);
+      }
+
+      // Mass fractions are decimals of the whole (0.3 is 30%).
+      function percent(fraction) {
+        if (typeof fraction !== 'number' || !isFinite(fraction)) return '';
+        return +(fraction * 100).toFixed(2) + '%';
+      }
+
+      function country(c) {
+        if (typeof c === 'string') return c;
+        if (!c) return '';
+        if (has(c.countryName)) {
+          return has(c.countryCode) ? c.countryName + ' (' + c.countryCode + ')' : c.countryName;
+        }
+        return has(c.countryCode) ? c.countryCode : '';
+      }
+
+      // Formats an arbitrary characteristics value as text without ever
+      // printing "[object Object]".
+      function text(value) {
+        if (!has(value)) return '';
+        if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+        if (typeof value !== 'object') return String(value);
+        if (Array.isArray(value)) return value.map(text).filter(has).join(', ');
+        if (typeof value.value === 'number') return measure(value);
+        if (has(value.name) && typeof value.name === 'string') return value.name;
+        return Object.keys(value)
+          .filter(function (key) { return key.charAt(0) !== '@' && has(value[key]); })
+          .map(function (key) { return key + ': ' + text(value[key]); })
+          .join('; ');
+      }
+
+      // An anchor for an http(s) target, otherwise plain text, so a credential
+      // value never becomes a javascript: or other scheme link.
+      function link(text, url, className, pointer) {
+        if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+          var anchor = el('a', className || 'blue-bottom-line-thick', text);
+          anchor.href = url;
+          anchor.target = '_blank';
+          anchor.rel = 'noopener noreferrer';
+          // PoC extension: host-mediated links
+          // When the host offers renderMethodOpenLink, the
+          // click names the pointer of the URL in the credential and the host
+          // decides what to open. Without it the anchor is left as it is.
+          if (pointer) {
+            anchor.addEventListener('click', function (event) {
+              if (typeof window.renderMethodOpenLink === 'function') {
+                event.preventDefault();
+                window.renderMethodOpenLink(pointer);
+              }
+            });
+          }
+          return anchor;
+        }
+        return el('span', null, text);
+      }
+
+      // A name linked to the identifier it refers to, with the identifier also
+      // shown as text. A renderer's sandbox usually blocks the click, so the
+      // target has to be readable on the page. pointer is the JSON Pointer of
+      // id in the credential (PoC extension: host-mediated links).
+      function named(name, id, pointer) {
+        var value = el('p', 'item-value');
+        if (has(name)) {
+          value.appendChild(link(name, id, null, pointer));
+          if (has(id)) value.appendChild(el('span', 'id-text', id));
+        } else if (has(id)) {
+          value.appendChild(link(id, id, null, pointer));
+        }
+        return value;
+      }
+
+      // The product image is shown only when it is embedded as a data: URL,
+      // because the sandbox blocks every other source. The pattern also keeps
+      // the value inside the CSS url() string. Without one the header keeps
+      // its gradient, and an image that fails to decode leaves the gradient.
+      var DATA_IMAGE = /^data:image\/[A-Za-z0-9.+-]+(;[A-Za-z0-9=.+-]+)*,[^"'\\()\s]+$/;
+
+      // PoC extension: host-prefetched images
+      // An image the host fetched and checked against its
+      // digestMultibase, passed as a data: URL in the separate
+      // <script name="resources"> block and keyed by the URL the credential
+      // holds. Returns '' when the host passed nothing for that URL.
+      function prefetched(url) {
+        var block = document.querySelector('head > script[name="resources"]');
+        if (!block) return '';
+        try {
+          var resources = JSON.parse(block.textContent);
+          var value = resources && Object.prototype.hasOwnProperty.call(resources, url) ? resources[url] : '';
+          return typeof value === 'string' ? value : '';
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function productImage(product) {
+        var picture = product.productImage;
+        if (!picture || typeof picture.linkURL !== 'string') return '';
+        // PoC extension: host-prefetched images
+        // Fall back to the host-prefetched copy of a URL.
+        var source = DATA_IMAGE.test(picture.linkURL) ? picture.linkURL : prefetched(picture.linkURL);
+        if (!DATA_IMAGE.test(source)) return '';
+        return 'url("' + source + '")';
+      }
+
+      function row(label, valueNode, labelClass) {
+        if (!valueNode || !valueNode.textContent.trim()) return null;
+        var item = el('div', 'table-item');
+        item.appendChild(el('span', labelClass || null, label));
+        item.appendChild(valueNode);
+        return item;
+      }
+
+      function textRow(label, value) {
+        return has(value) ? row(label, el('p', 'item-value', value)) : null;
+      }
+
+      function section(className, title, description, body) {
+        var node = el('section', className);
+        var head = el('div');
+        head.appendChild(el('h3', 'section-title', title));
+        if (description) head.appendChild(el('p', 'section-description', description));
+        node.appendChild(head);
+        node.appendChild(body);
+        return node;
+      }
+
+      function table(rows) {
+        rows = rows.filter(Boolean);
+        return rows.length ? append(el('div', 'table'), rows) : null;
+      }
+
+      function renderHeader(product, pointer) {
+        var header = el('header', 'header');
+        var image = el('div', 'header-image');
+        var picture = productImage(product);
+        if (picture) image.style.setProperty('--image-src', picture);
+        image.appendChild(el('p', 'header-image-top-left', 'PRODUCT PASSPORT'));
+        if (has(product.name)) {
+          image.appendChild(append(el('div', 'header-image-bottom-left'), [el('h1', null, product.name)]));
+        }
+        header.appendChild(image);
+
+        var items = [
+          ['ID', product.id],
+          ['Batch', product.batchNumber],
+          ['Item', product.itemNumber],
+          ['Model', product.modelNumber]
+        ].filter(function (pair) { return has(pair[1]); });
+        if (items.length) {
+          var batch = el('div', 'header-batch');
+          items.forEach(function (pair) {
+            var item = el('div', 'header-batch-item');
+            item.appendChild(icon(TAG_ICON));
+            var label = pair[0] + ': ' + pair[1];
+            item.appendChild(pair[0] === 'ID' ? link(label, pair[1], null, at(pointer, 'id')) : el('span', null, label)); // PoC extension: host-mediated links
+            batch.appendChild(item);
+          });
+          header.appendChild(batch);
+        }
+        return header;
+      }
+
+      function renderProduction(product, pointer) {
+        var rows = [];
+        var categories = list(product.productCategory).map(function (c) { return c.name; }).filter(has);
+        if (categories.length) rows.push(textRow('Product category', categories.join(', ')));
+        // PoC extension: host-mediated links
+        // listAt() and at() carry each link's pointer.
+        listAt(product.relatedParty, at(pointer, 'relatedParty')).forEach(function (item) {
+          var rel = item.value;
+          if (rel.party) rows.push(row(rel.role, named(rel.party.name, rel.party.id, at(at(item.pointer, 'party'), 'id')), 'capitalize-first'));
+        });
+        if (product.producedAtFacility) {
+          rows.push(row('Produced at', named(product.producedAtFacility.name, product.producedAtFacility.id, at(at(pointer, 'producedAtFacility'), 'id'))));
+        }
+        rows.push(textRow('Date produced', product.productionDate));
+        rows.push(textRow('Country', country(product.countryOfProduction)));
+        var d = product.dimensions || {};
+        var dims = el('p', 'item-value');
+        [['Weight', d.weight], ['Length', d.length], ['Width', d.width], ['Height', d.height], ['Volume', d.volume]]
+          .forEach(function (pair) {
+            var m = measure(pair[1]);
+            if (m) dims.appendChild(el('span', null, pair[0] + ': ' + m));
+          });
+        rows.push(row('Dimensions', dims));
+        var body = table(rows);
+        return body ? section('production', 'Production', null, body) : null;
+      }
+
+      function performanceLine(performance) {
+        var parts = [measure(performance.measure)];
+        var score = performance.score;
+        if (score && has(score.code)) {
+          parts.push(typeof score.rank === 'number' ? score.code + ' (rank ' + score.rank + ')' : score.code);
+        }
+        parts.push(performance.determination);
+        parts = parts.filter(has);
+        var metric = performance.metric && performance.metric.name;
+        var lines = [];
+        if (has(metric) || parts.length) {
+          var label = has(metric) ? metric + (parts.length ? ': ' : '') : '';
+          lines.push(el('p', 'performance-item', label + parts.join(', ')));
+        }
+        if (has(performance.qualitativeFinding)) lines.push(el('p', null, performance.qualitativeFinding));
+        return lines;
+      }
+
+      function topicTags(criteria) {
+        var seen = {};
+        var tags = [];
+        list(criteria).forEach(function (criterion) {
+          list(criterion.conformityTopic).forEach(function (topic) {
+            var key = topic.id || topic.name;
+            if (has(topic.name) && !seen[key]) {
+              seen[key] = true;
+              tags.push(el('span', 'conformity-topic-tag', topic.name));
+            }
+          });
+        });
+        return tags.length ? append(el('div'), tags) : null;
+      }
+
+      function renderClaims(product, pointer) {
+        // PoC extension: host-mediated links
+        // listAt() and at() carry each link's pointer.
+        var claims = listAt(product.performanceClaim, at(pointer, 'performanceClaim'));
+        if (!claims.length) return null;
+        var cards = el('div', 'cards-conformities');
+        claims.forEach(function (item) {
+          var claim = item.value;
+          var card = el('article', 'cards-conformity');
+          if (has(claim.name)) card.appendChild(el('div', 'claim-name', claim.name));
+          if (has(claim.description)) card.appendChild(append(el('div', 'conformity-info'), [el('p', null, claim.description)]));
+          var tags = topicTags(claim.referenceCriteria);
+          if (tags) card.appendChild(tags);
+          var results = [];
+          list(claim.claimedPerformance).forEach(function (p) { results = results.concat(performanceLine(p)); });
+          if (results.length) card.appendChild(append(el('div', 'conformity-info'), results));
+          var criteria = listAt(claim.referenceCriteria, at(item.pointer, 'referenceCriteria'))
+            .filter(function (c) { return has(c.value.name) || has(c.value.id); });
+          if (criteria.length) {
+            card.appendChild(append(el('div', 'conformity-info'), criteria.map(function (c) {
+              return named(c.value.name, c.value.id, at(c.pointer, 'id'));
+            })));
+          }
+          if (has(claim.claimDate)) card.appendChild(append(el('div', 'conformity-info'), [el('p', null, 'Claim date: ' + claim.claimDate)]));
+          cards.appendChild(card);
+        });
+        return section('declarations', 'Performance Claims', null, cards);
+      }
+
+      function renderMaterials(product) {
+        var materials = list(product.materialProvenance).filter(function (m) { return has(m.name); });
+        if (!materials.length) return null;
+        var box = el('div', 'composition-box');
+        materials.forEach(function (material) {
+          var item = el('article', 'composition-box-item');
+          var first = el('div', 'composition-first-column');
+          first.appendChild(el('p', 'composition-percent', percent(material.massFraction)));
+          var detail = el('div');
+          var mass = measure(material.mass);
+          detail.appendChild(el('p', 'composition-title', (mass ? mass + ' ' : '') + material.name));
+          if (material.materialType && has(material.materialType.name)) {
+            detail.appendChild(el('p', 'composition-type', material.materialType.name));
+          }
+          var tags = [];
+          if (percent(material.recycledMassFraction)) tags.push(el('p', 'composition-tag-item', 'Recycled ' + percent(material.recycledMassFraction)));
+          if (typeof material.hazardous === 'boolean') tags.push(el('p', 'composition-tag-item', 'Hazard ' + (material.hazardous ? 'Yes' : 'No')));
+          if (tags.length) detail.appendChild(append(el('div', 'composition-tag'), tags));
+          first.appendChild(detail);
+          item.appendChild(first);
+          var origin = material.originCountry;
+          var code = typeof origin === 'string' ? origin : origin && origin.countryCode;
+          if (has(code)) item.appendChild(el('div', 'country-code', code));
+          box.appendChild(item);
+        });
+        return section('composition', 'Material Provenance', 'Origin and composition of materials used in this product.', box);
+      }
+
+      function renderCharacteristics(product) {
+        var c = product.characteristics;
+        if (!c || typeof c !== 'object') return null;
+        var rows = Object.keys(c)
+          .filter(function (key) { return key.charAt(0) !== '@'; })
+          .map(function (key) { return textRow(key, text(c[key])); });
+        var body = table(rows);
+        return body ? section('production', 'Characteristics', null, body) : null;
+      }
+
+      function renderIssuer(vc) {
+        var issuer = typeof vc.issuer === 'string' ? { id: vc.issuer } : vc.issuer || {};
+        var body = table([
+          textRow('Organisation', issuer.name),
+          has(issuer.id) ? row('Identifier', named(null, issuer.id, typeof vc.issuer === 'string' ? '/issuer' : '/issuer/id')) : null, // PoC extension: host-mediated links
+          textRow('Valid from', vc.validFrom),
+          textRow('Valid to', vc.validUntil)
+        ]);
+        return body ? section('issued-by', 'Passport Issued By', null, body) : null;
+      }
+
+      // PoC extension: host-mediated links
+      // The source template does not show relatedDocument,
+      // so this section is new. It lists each related document (the
+      // conformity credential, for example) as its name linked to its URL,
+      // with the URL also shown as text.
+      function renderRelatedDocuments(product, pointer) {
+        var rows = listAt(product.relatedDocument, at(pointer, 'relatedDocument')).map(function (item) {
+          var doc = item.value;
+          return has(doc.linkURL) ? row('Document', named(doc.linkName, doc.linkURL, at(item.pointer, 'linkURL'))) : null;
+        });
+        var body = table(rows);
+        return body ? section('production', 'Related Documents', null, body) : null;
+      }
+
+      function renderFooter() {
+        var footer = el('footer');
+        var note = el('p', null, 'This Digital Product Passport (DPP) is a digital record of the product\'s sustainability and environmental performance, ensuring transparency and accountability in line with UNTP standards. For more information visit ');
+        note.appendChild(link('untp.unece.org', 'https://untp.unece.org', 'gray-bottom-line'));
+        note.appendChild(document.createTextNode('.'));
+        footer.appendChild(note);
+        return footer;
+      }
+
+      function render() {
+        var root = document.getElementById('untp-dpp-root');
+        try {
+          var block = document.querySelector('head > script[name="credential"]');
+          if (!block) throw new Error('No credential data block found');
+          var vc = JSON.parse(block.textContent);
+          // PoC extension: host-mediated links
+          // Each subject keeps its pointer in the credential.
+          var products = listAt(vc.credentialSubject, '/credentialSubject').filter(function (s) { return typeof s.value === 'object'; });
+          if (!products.length) throw new Error('The credential has no credentialSubject to render');
+          products.forEach(function (item) {
+            var product = item.value;
+            append(root, [
+              renderHeader(product, item.pointer),
+              has(product.description) ? append(el('section'), [el('div', 'information-text', product.description)]) : null,
+              renderProduction(product, item.pointer),
+              renderClaims(product, item.pointer),
+              renderMaterials(product),
+              renderCharacteristics(product),
+              renderRelatedDocuments(product, item.pointer)
+            ]);
+          });
+          append(root, [renderIssuer(vc), renderFooter()]);
+          ready();
+        } catch (err) {
+          if (root) root.textContent = '';
+          ready(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', render);
+      } else {
+        render();
+      }
+    })();
+  </script>
+</div>

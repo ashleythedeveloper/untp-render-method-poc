@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <!-- WD 2.2.2.2: the host page CSP includes frame-src 'none', which forces
+       srcdoc and blocks the template frame from navigating itself. There is
+       deliberately no default-src, so the host can fetch templates and images
+       and the srcdoc document (which inherits this policy) can run its inline
+       wrapper and template scripts. -->
+  <meta http-equiv="content-security-policy" content="frame-src 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UNTP Render Method PoC</title>
+  <meta name="description" content="Renders UNTP credentials with the W3C html render suite, plus two marked extensions: host-mediated links and host-prefetched images.">
+  <link rel="stylesheet" href="css/host.css">
+  <script type="module" src="js/host.js"></script>
+</head>
+<body>
+  <header class="page-header">
+    <h1>UNTP render method proof of concept</h1>
+    <p>
+      This page renders UN Transparency Protocol credentials with the W3C
+      <code>html</code> render suite as specified in
+      <a href="https://www.w3.org/TR/2026/WD-vc-render-method-20261006/" rel="noopener noreferrer">Verifiable Credential Rendering Methods v1.0, Working Draft of 6 October 2026</a>,
+      plus two extensions: host-mediated links and host-prefetched images. The
+      activity panel shows each step.
+    </p>
+    <p class="notice" role="note">
+      These are unsigned sample credentials. Signature verification is out of
+      scope for this proof of concept.
+    </p>
+    <dl class="legend">
+      <div><dt><span class="tag tag-wd">WD</span></dt><dd>Behaviour the Working Draft specifies.</dd></div>
+      <div><dt><span class="tag tag-links">Host-mediated links</span></dt><dd>A click in the credential sends the host a JSON Pointer into the credential; the host resolves it and decides what to open. The frame never navigates.</dd></div>
+      <div><dt><span class="tag tag-images">Host-prefetched images</span></dt><dd>The host fetches only the images the issuer lists in <code>renderResource</code>, checks each digest and passes them to the template in a separate data block. The credential is never modified.</dd></div>
+    </dl>
+  </header>
+
+  <main class="layout">
+    <section class="viewer-column" aria-labelledby="viewer-heading">
+      <h2 id="viewer-heading" class="visually-hidden">Credential viewer</h2>
+      <div class="picker" role="group" aria-label="Choose a credential" id="picker"></div>
+      <div class="viewer-bar">
+        <button type="button" id="back" disabled>Back</button>
+        <p id="viewer-title" class="viewer-title">Choose a credential to render.</p>
+      </div>
+      <p id="render-error" class="render-error" role="alert" hidden></p>
+      <div id="viewer" class="viewer"></div>
+    </section>
+
+    <section class="activity-column" aria-labelledby="activity-heading">
+      <div class="activity-head">
+        <h2 id="activity-heading">Activity</h2>
+        <button type="button" id="clear-activity">Clear</button>
+      </div>
+      <ol id="activity" class="activity" aria-live="polite"></ol>
+    </section>
+  </main>
+
+  <dialog id="confirm-link" aria-labelledby="confirm-heading">
+    <form method="dialog">
+      <h2 id="confirm-heading">Open external link?</h2>
+      <p id="confirm-url" class="confirm-url"></p>
+      <p class="confirm-note">The credential links to this address. It opens in a new tab, without a referrer and without access to this page.</p>
+      <div class="confirm-actions">
+        <button value="cancel">Cancel</button>
+        <button value="open" class="primary">Open in new tab</button>
+      </div>
+    </form>
+  </dialog>
+
+  <footer class="page-footer">
+    <p>
+      Templates and samples derive from UN/CEFACT
+      <a href="https://github.com/uncefact/spec-untp" rel="noopener noreferrer">spec-untp</a>
+      and <a href="https://github.com/uncefact/tests-untp" rel="noopener noreferrer">tests-untp</a>.
+      <a href="vocab.html">PoC vocabulary</a>.
+    </p>
+  </footer>
+</body>
+</html>

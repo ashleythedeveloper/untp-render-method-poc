@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PoC Render Vocabulary</title>
+  <meta name="description" content="Terms this proof of concept adds to the render method data model.">
+  <link rel="stylesheet" href="css/host.css">
+</head>
+<body>
+  <main class="vocab">
+    <h1>Proof-of-concept render vocabulary</h1>
+    <p>
+      These terms are extensions used by this proof of concept only. They are
+      not part of the W3C Verifiable Credential Rendering Methods Working
+      Draft or of the UN Transparency Protocol vocabulary.
+    </p>
+    <h2 id="renderResource">renderResource</h2>
+    <p>
+      An optional property of a <code>SuiteRenderMethod</code>, next to
+      <code>renderProperty</code>. Its value is a list of JSON Pointers
+      (RFC 6901) into the credential. Each pointer names an object, such as a
+      product image link, that the issuer allows the host to fetch on the
+      template's behalf. The host fetches a named object only when it has an
+      <code>https:</code> URL in <code>linkURL</code> (or <code>id</code>), a
+      <code>digestMultibase</code> and an <code>image/*</code>
+      <code>mediaType</code>, and only when its bytes match the digest. When
+      <code>renderProperty</code> is present, a pointer outside it is ignored.
+      The verified images reach the template in a separate
+      <code>&lt;script name="resources" type="application/json"&gt;</code>
+      data block, keyed by the URL in the credential; the credential itself is
+      not modified.
+    </p>
+    <p>
+      The PoC credentials define the term with an inline context entry:
+      <code>{"renderResource": {"@id": ".../vocab#renderResource", "@container": "@list"}}</code>.
+    </p>
+    <p><a href="./">Back to the proof of concept</a></p>
+  </main>
+</body>
+</html>

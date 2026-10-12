@@ -1,0 +1,6 @@
+# Upstream copies the PoC was built from. They are not committed; the README
+# cites where each one comes from.
+source/
+
+.DS_Store
+.vercel/
