@@ -45,6 +45,7 @@
       <div class="view-tabs" role="tablist" aria-label="View">
         <button type="button" role="tab" id="tab-rendered" aria-selected="true" aria-controls="panel-rendered">Rendered view</button>
         <button type="button" role="tab" id="tab-json" aria-selected="false" aria-controls="panel-json" tabindex="-1">Credential JSON</button>
+        <button type="button" role="tab" id="tab-template" aria-selected="false" aria-controls="panel-template" tabindex="-1">Template HTML</button>
       </div>
       <div id="panel-rendered" role="tabpanel" aria-labelledby="tab-rendered">
         <p id="render-error" class="render-error" role="alert" hidden></p>
@@ -58,6 +59,24 @@
         </div>
         <p id="json-note" class="json-note" hidden></p>
         <pre id="credential-json" class="credential-json" tabindex="0" aria-label="Credential JSON"><code>Choose a credential to see its JSON.</code></pre>
+      </div>
+      <div id="panel-template" role="tabpanel" aria-labelledby="tab-template" hidden>
+        <dl class="template-facts">
+          <div><dt>Template</dt><dd id="template-url">None yet.</dd></div>
+          <div><dt>digestMultibase</dt><dd id="template-digest">None yet.</dd></div>
+          <div><dt>Digest check</dt><dd id="template-check">None yet.</dd></div>
+        </dl>
+        <div class="json-bar">
+          <div class="source-toggle" role="group" aria-label="Source to show">
+            <button type="button" id="show-template" aria-pressed="true">Template</button>
+            <button type="button" id="show-wrapper" aria-pressed="false">Full wrapper (host-generated)</button>
+          </div>
+          <button type="button" id="copy-template" disabled>Copy</button>
+          <a id="template-raw-link" class="raw-link" href="#" rel="noopener noreferrer" hidden>Raw template</a>
+          <span id="template-copy-status" class="copy-status" role="status"></span>
+        </div>
+        <p id="template-note" class="json-note" hidden></p>
+        <pre id="template-source" class="credential-json" tabindex="0" aria-label="Template HTML"><code>Choose a credential to see its template.</code></pre>
       </div>
     </section>
 

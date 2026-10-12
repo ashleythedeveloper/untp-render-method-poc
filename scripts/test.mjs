@@ -159,6 +159,21 @@ await test('Host page: every resolved link, own-origin included, goes through th
   assert.ok(dialog.indexOf('showModal()') > 0);
 });
 
+await test('Host page: the Template HTML tab shows the same template text the host injects into the wrapper', () => {
+  // A source check, as the host page needs a browser to run: the decoded text
+  // handed to the view is the variable buildWrapper receives, set only after
+  // the digest check and before the wrapper is built.
+  const hostSource = readText('js/host.js');
+  const render = hostSource.slice(hostSource.indexOf('async function render('), hostSource.indexOf('function placeholder('));
+  const decoded = render.indexOf('const templateHtml = new TextDecoder().decode(templateBytes);');
+  const shown = render.indexOf('html: templateHtml,');
+  const built = render.indexOf('buildWrapper({ templateHtml, credentialText, resources })');
+  const checked = render.indexOf('verifyDigestMultibase(templateBytes, reference.digestMultibase)');
+  assert.ok(checked > 0 && checked < decoded && decoded < shown && shown < built);
+  assert.equal((render.match(/templateHtml =/g) || []).length, 1, 'templateHtml is assigned once');
+  assert.ok(render.indexOf('templateView.wrapper = wrapper;') > built);
+});
+
 // ---------------------------------------------------------------------------
 // The verify entry point
 // ---------------------------------------------------------------------------

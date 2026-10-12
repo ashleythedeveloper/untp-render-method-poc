@@ -30,12 +30,22 @@ const confirmDialog = document.getElementById('confirm-link');
 const confirmName = document.getElementById('confirm-name');
 const confirmUrl = document.getElementById('confirm-url');
 const confirmNote = document.getElementById('confirm-note');
-const tabs = [document.getElementById('tab-rendered'), document.getElementById('tab-json')];
+const tabs = ['tab-rendered', 'tab-json', 'tab-template'].map((id) => document.getElementById(id));
 const credentialJson = document.getElementById('credential-json');
 const jsonNote = document.getElementById('json-note');
 const copyButton = document.getElementById('copy-json');
 const copyStatus = document.getElementById('copy-status');
 const rawLink = document.getElementById('raw-link');
+const templateUrl = document.getElementById('template-url');
+const templateDigest = document.getElementById('template-digest');
+const templateCheck = document.getElementById('template-check');
+const templateSource = document.getElementById('template-source');
+const templateNote = document.getElementById('template-note');
+const templateCopy = document.getElementById('copy-template');
+const templateCopyStatus = document.getElementById('template-copy-status');
+const templateRawLink = document.getElementById('template-raw-link');
+const showTemplateButton = document.getElementById('show-template');
+const showWrapperButton = document.getElementById('show-wrapper');
 
 const READY_TIMEOUT_MS = 15000;
 
@@ -204,14 +214,21 @@ async function render(entry) {
 
   const { credential, text } = entry;
   showCredentialJson(entry, text, false);
+  setTemplateView(seq, null);
   const method = selectHtmlRenderMethod(credential);
-  if (!method) return fail(seq, 'wd', 'The credential has no renderMethod with type SuiteRenderMethod and renderSuite "html".');
+  if (!method) {
+    setTemplateView(seq, { check: 'No html render method, so there is no template.' });
+    return fail(seq, 'wd', 'The credential has no renderMethod with type SuiteRenderMethod and renderSuite "html".');
+  }
   log('wd', 'ok', 'Selected render method "' + (method.name || 'html') + '" (SuiteRenderMethod, renderSuite html).');
 
   // The template (WD 2.2, 2.2.2.2: preload and check before injecting).
   const reference = templateReference(method);
   let templateBytes;
-  if (reference.kind === 'refuse') return fail(seq, 'wd', 'Template refused: ' + reference.reason);
+  if (reference.kind === 'refuse') {
+    setTemplateView(seq, { check: 'Refused: ' + reference.reason });
+    return fail(seq, 'wd', 'Template refused: ' + reference.reason);
+  }
   if (reference.kind === 'fetch') {
     try {
       templateBytes = await fetchBytes(reference.url);
@@ -225,11 +242,19 @@ async function render(entry) {
   }
   if (reference.digestMultibase) {
     const check = await verifyDigestMultibase(templateBytes, reference.digestMultibase);
-    if (!check.ok) return fail(seq, 'wd', 'Template blocked: ' + check.reason);
+    if (!check.ok) {
+      setTemplateView(seq, { reference, check: 'Does not match, so the template was blocked and not injected: ' + check.reason });
+      return fail(seq, 'wd', 'Template blocked: ' + check.reason);
+    }
     log('wd', 'ok', 'Template digest matches digestMultibase ' + reference.digestMultibase + '.');
   }
   if (seq !== renderSeq) return;
   const templateHtml = new TextDecoder().decode(templateBytes);
+  setTemplateView(seq, {
+    reference,
+    html: templateHtml,
+    check: reference.digestMultibase ? 'Matches.' : 'No digestMultibase given, so nothing to check.'
+  });
 
   // renderProperty filtering (WD 3.2.1). Without it the data block holds the
   // credential file's own text, unmodified.
@@ -248,6 +273,8 @@ async function render(entry) {
   if (seq !== renderSeq) return;
 
   const wrapper = buildWrapper({ templateHtml, credentialText, resources });
+  if (templateView) templateView.wrapper = wrapper;
+  showTemplateSource();
   startFrame(wrapper, method, credential, seq);
 }
 
@@ -436,19 +463,93 @@ function showCredentialJson(entry, credentialText, filtered) {
   copyStatus.textContent = '';
 }
 
-copyButton.addEventListener('click', async () => {
+// Copies a pre block's text, or selects it when the clipboard is unavailable.
+async function copyText(pre, status, what) {
   try {
-    await navigator.clipboard.writeText(credentialJson.textContent);
-    copyStatus.textContent = 'Copied.';
+    await navigator.clipboard.writeText(pre.textContent);
+    status.textContent = 'Copied.';
   } catch {
     const range = document.createRange();
-    range.selectNodeContents(credentialJson);
+    range.selectNodeContents(pre);
     const selection = window.getSelection();
     selection.removeAllRanges();
     selection.addRange(range);
-    copyStatus.textContent = 'Copy is not available here; the JSON is selected instead.';
+    status.textContent = 'Copy is not available here; the ' + what + ' is selected instead.';
   }
+}
+
+copyButton.addEventListener('click', () => copyText(credentialJson, copyStatus, 'JSON'));
+
+// ---------------------------------------------------------------------------
+// Template HTML view
+// ---------------------------------------------------------------------------
+
+// What the host knows about the current render's template: the reference, the
+// exact text it injects (once checked), the digest result and, once built,
+// the wrapper it set as srcdoc. Filled in by render(); read only here.
+let templateView = null;
+let showWrapper = false;
+
+function setTemplateView(seq, view) {
+  if (seq !== renderSeq) return;
+  templateView = view;
+  const reference = view && view.reference;
+  if (!reference) {
+    templateUrl.textContent = view ? 'Not available.' : 'Waiting for the render.';
+    templateDigest.textContent = 'None.';
+  } else if (reference.kind === 'fetch') {
+    templateUrl.textContent = reference.url;
+    templateDigest.textContent = reference.digestMultibase;
+  } else {
+    templateUrl.textContent = 'Embedded in the credential as a data: URL (decoded below).';
+    templateDigest.textContent = reference.digestMultibase || 'None given.';
+  }
+  templateCheck.textContent = view ? view.check : 'Waiting for the render.';
+  if (reference && reference.kind === 'fetch') {
+    templateRawLink.href = toFetchUrl(reference.url);
+    templateRawLink.hidden = false;
+  } else {
+    templateRawLink.hidden = true;
+  }
+  showTemplateSource();
+}
+
+function showTemplateSource() {
+  showTemplateButton.setAttribute('aria-pressed', String(!showWrapper));
+  showWrapperButton.setAttribute('aria-pressed', String(showWrapper));
+  const view = templateView;
+  let text;
+  let note = '';
+  if (showWrapper) {
+    text = view && view.wrapper ? view.wrapper : 'The wrapper has not been built for this render.';
+    note = 'Host-generated: the wrapper document the host built and set as the frame\'s srcdoc, holding the credential and resources data blocks, the wrapper script and the template.';
+  } else {
+    text = view && typeof view.html === 'string' ? view.html : 'No checked template for this render.';
+    if (view && view.reference && view.reference.kind === 'inline') {
+      note = 'The template came inline as a data: URL; this is its decoded text.';
+    } else if (view && typeof view.html === 'string') {
+      note = 'The template text exactly as fetched and checked, the same text the host injects into the wrapper.';
+    }
+  }
+  const code = document.createElement('code');
+  code.textContent = text;
+  templateSource.replaceChildren(code);
+  templateSource.setAttribute('aria-label', showWrapper ? 'Full wrapper (host-generated)' : 'Template HTML');
+  templateNote.textContent = note;
+  templateNote.hidden = !note;
+  templateCopy.disabled = !(view && (showWrapper ? view.wrapper : typeof view.html === 'string'));
+  templateCopyStatus.textContent = '';
+}
+
+showTemplateButton.addEventListener('click', () => {
+  showWrapper = false;
+  showTemplateSource();
 });
+showWrapperButton.addEventListener('click', () => {
+  showWrapper = true;
+  showTemplateSource();
+});
+templateCopy.addEventListener('click', () => copyText(templateSource, templateCopyStatus, showWrapper ? 'wrapper' : 'template'));
 
 // Tabs follow the WAI-ARIA tabs pattern: one tab in the Tab order, arrow keys,
 // Home and End move between tabs, and activation shows its panel.

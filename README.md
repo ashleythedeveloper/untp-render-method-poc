@@ -9,6 +9,8 @@ An activity panel beside the rendered credential lists every step: the template 
 
 The **Credential JSON** tab above the viewer shows the credential currently rendered, pretty-printed: the same object the host passes to the frame. It has a Copy button and a link to the raw file, and it always shows the credential rendered in that tab. When a render method has `renderProperty`, the tab shows the filtered credential the frame receives and says so.
 
+The **Template HTML** tab shows the render template for the credential on screen: exactly the text the host fetched and digest-checked, which is the same text it injects into the wrapper, with the template URL, its `digestMultibase`, the result of the check, a Copy button and a link to the raw template file. A template embedded as a `data:` URL is shown decoded, and the tab says so. A second toggle, **Full wrapper (host-generated)**, shows the whole document the host set as the frame's `srcdoc`, including the credential and resources data blocks and the wrapper script.
+
 The sample credentials are unsigned. Signature verification is out of scope for this proof of concept, and the page says so.
 
 This is a demonstration for discussion, not production code. The parts the WD makes normative are implemented as written; the extensions are clearly separated so they can be judged on their own.

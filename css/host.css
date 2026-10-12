@@ -273,6 +273,38 @@ button.primary {
   margin: 0 0 8px;
 }
 
+.template-facts {
+  margin: 0 0 8px;
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.template-facts div {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: 8px;
+}
+
+.template-facts dt {
+  color: var(--muted);
+}
+
+.template-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.source-toggle {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.source-toggle button[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
 .credential-json {
   margin: 0;
   padding: 12px;
