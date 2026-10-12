@@ -23,32 +23,30 @@ export function parsePointer(pointer) {
   return tokens.map((token) => token.replace(/~1/g, '/').replace(/~0/g, '~'));
 }
 
-// Resolves a pointer against a document. Returns { found, value, parent }.
+// Resolves a pointer against a document. Returns { found, value } or
+// { found: false, reason }.
 // Only own properties and canonical array indexes resolve, so a pointer
 // cannot reach "__proto__" or "length".
 export function resolvePointer(document, pointer) {
   const tokens = parsePointer(pointer);
   if (tokens === null) return { found: false, reason: 'not a JSON Pointer' };
   let value = document;
-  let parent = null;
   for (const token of tokens) {
     if (Array.isArray(value)) {
       if (!/^(0|[1-9][0-9]*)$/.test(token) || Number(token) >= value.length) {
         return { found: false, reason: 'no array element at ' + JSON.stringify(token) };
       }
-      parent = value;
       value = value[Number(token)];
     } else if (value !== null && typeof value === 'object') {
       if (!Object.prototype.hasOwnProperty.call(value, token)) {
         return { found: false, reason: 'no property ' + JSON.stringify(token) };
       }
-      parent = value;
       value = value[token];
     } else {
       return { found: false, reason: 'path continues past a non-container value' };
     }
   }
-  return { found: true, value, parent };
+  return { found: true, value };
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +217,7 @@ export function filterByRenderProperty(credential, renderProperty) {
 // ---------------------------------------------------------------------------
 
 // Makes JSON safe inside a <script> data block. "<" can only occur inside JSON
-// strings, where "<" means the same character, so the parsed value is
+// strings, where "\u003c" means the same character, so the parsed value is
 // unchanged while "</script>" and "<!--" can no longer end the block.
 export function escapeScriptData(jsonText) {
   return jsonText.replace(/</g, '\\u003c');
@@ -274,9 +272,7 @@ export function buildWrapper({ templateHtml, credentialText, resources }) {
 // pointer against the credential the host holds. Returns one of
 //   { action: 'ignore', reason }   not an open-link message with a pointer
 //   { action: 'refuse', pointer, reason }
-//   { action: 'open', pointer, url, digestMultibase? }
-// digestMultibase is taken from the object that holds the URL (a Link with
-// linkURL and digestMultibase, for example).
+//   { action: 'open', pointer, url }
 export function decideOpenLink(credential, message) {
   if (!message || typeof message !== 'object' || message.type !== 'open-link') {
     return { action: 'ignore', reason: 'not an open-link message' };
@@ -297,9 +293,74 @@ export function decideOpenLink(credential, message) {
   } catch {
     return { action: 'refuse', pointer, reason: 'value at pointer is not a valid URL: ' + value };
   }
-  const holder = resolved.parent;
-  const digest = holder && !Array.isArray(holder) && typeof holder.digestMultibase === 'string' ? holder.digestMultibase : undefined;
-  return { action: 'open', pointer, url: value, digestMultibase: digest };
+  return { action: 'open', pointer, url: value };
+}
+
+// True when url is on the given origin (the PoC's own pages open directly in
+// a new tab; anything else needs the reader's confirmation).
+export function isSameOrigin(url, origin) {
+  try {
+    return new URL(url).origin === origin;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The verify entry point
+// ---------------------------------------------------------------------------
+
+// Mirrors the direct query parameters of the reference implementation's
+// verify page: uri (the credential's URL), digestMultibase (its digest) and
+// optionally decryptionKey. Builds <appBase>/verify?uri=...&digestMultibase=...
+export function buildVerifyUrl(appBase, uri, digestMultibase, decryptionKey) {
+  let url = appBase + '/verify?uri=' + encodeURIComponent(uri);
+  if (digestMultibase) url += '&digestMultibase=' + encodeURIComponent(digestMultibase);
+  if (decryptionKey) url += '&decryptionKey=' + encodeURIComponent(decryptionKey);
+  return url;
+}
+
+// Reads the verify parameters from a query string. Returns null when there is
+// no uri, { uri, digestMultibase?, decryptionKey? } when there is, or
+// { error } when the request is unusable.
+export function parseVerifyParams(search) {
+  const params = new URLSearchParams(typeof search === 'string' ? search : '');
+  if (!params.has('uri')) return null;
+  if (params.getAll('uri').length > 1) return { error: 'more than one uri parameter' };
+  const uri = params.get('uri');
+  if (!uri) return { error: 'the uri parameter is empty' };
+  let parsed;
+  try {
+    parsed = new URL(uri);
+  } catch {
+    return { error: 'uri is not an absolute URL: ' + uri };
+  }
+  if (parsed.protocol !== 'https:') return { error: 'uri is not an https: URL: ' + uri };
+  const result = { uri };
+  for (const name of ['digestMultibase', 'decryptionKey']) {
+    if (!params.has(name)) continue;
+    const value = params.get(name);
+    if (!value) return { error: 'the ' + name + ' parameter is empty' };
+    result[name] = value;
+  }
+  return result;
+}
+
+// Checks fetched credential bytes against the digestMultibase the verify URL
+// carried (if any) and parses them. Returns { ok: true, text, credential, digest } or
+// { ok: false, reason }; digest is the check result or null when none was given.
+export async function acceptCredentialBytes(bytes, expectedDigest) {
+  let digest = null;
+  if (expectedDigest) {
+    digest = await verifyDigestMultibase(bytes, expectedDigest);
+    if (!digest.ok) return { ok: false, reason: 'credential blocked: ' + digest.reason };
+  }
+  const text = new TextDecoder().decode(toBytes(bytes));
+  try {
+    return { ok: true, text, credential: JSON.parse(text), digest };
+  } catch (err) {
+    return { ok: false, reason: 'the response is not JSON: ' + err.message };
+  }
 }
 
 // ---------------------------------------------------------------------------

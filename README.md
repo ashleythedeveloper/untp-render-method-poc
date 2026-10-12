@@ -2,12 +2,12 @@
 
 A static web page that renders [UN Transparency Protocol](https://untp.unece.org) (UNTP) credentials with the W3C `html` render suite, as specified in [Verifiable Credential Rendering Methods v1.0, W3C Working Draft of 6 October 2026](https://www.w3.org/TR/2026/WD-vc-render-method-20261006/) (the WD below). It adds two extensions, named the same way throughout the code and the page:
 
-- **Host-mediated links.** Clicking a link in a rendered credential sends the host page a JSON Pointer into the credential. The host resolves the pointer itself and either renders the linked credential (from the Digital Product Passport to its Digital Conformity Credential) or asks the reader to confirm and opens the external address in a new tab. The template frame never navigates.
+- **Host-mediated links.** Clicking a link in a rendered credential sends the host page a JSON Pointer into the credential. The host resolves the pointer itself and opens the address in a new tab: the PoC's own pages (such as the verify URL of the linked Digital Conformity Credential) directly, anything else after the reader confirms. The template frame never navigates.
 - **Host-prefetched images.** Before rendering, the host fetches the images the issuer lists in the render method's `renderResource` property, checks each one against its `digestMultibase`, and passes them to the template in a separate data block keyed by the original URL. The credential the template receives is the issuer's credential, unmodified.
 
 An activity panel beside the rendered credential lists every step: the template fetch and digest check, each declared image and what happened to it, and each link request and how the host handled it.
 
-The **Credential JSON** tab above the viewer shows the credential currently rendered, pretty-printed: the same object the host passes to the frame. It has a Copy button and a link to the raw file, and it follows linked credentials and **Back**. When a render method has `renderProperty`, the tab shows the filtered credential the frame receives and says so.
+The **Credential JSON** tab above the viewer shows the credential currently rendered, pretty-printed: the same object the host passes to the frame. It has a Copy button and a link to the raw file, and it always shows the credential rendered in that tab. When a render method has `renderProperty`, the tab shows the filtered credential the frame receives and says so.
 
 The sample credentials are unsigned. Signature verification is out of scope for this proof of concept, and the page says so.
 
@@ -15,8 +15,8 @@ This is a demonstration for discussion, not production code. The parts the WD ma
 
 ## What to try
 
-1. Open the page and choose **Digital Product Passport**. The activity panel shows the template fetched and its digest checked, the product image declared in `renderResource`, fetched and checked, and the template reporting ready.
-2. Scroll to **Related Documents** and click the conformity credential link. The host resolves the pointer `/credentialSubject/relatedDocument/0/linkURL`, recognises one of its own credentials, checks the linked file against the link's `digestMultibase` and renders the DCC. **Back** returns to the passport.
+1. Open the page and choose **Digital Product Passport**. The page moves to that credential's verify URL (see below). The activity panel shows the template fetched and its digest checked, the product image declared in `renderResource`, fetched and checked, and the template reporting ready.
+2. Scroll to **Related Documents** and click the conformity credential link. The host resolves the pointer `/credentialSubject/relatedDocument/0/linkURL` to the DCC's verify URL on this site and opens it in a new tab, which fetches the DCC, checks it against the `digestMultibase` in the URL and renders it. If the browser blocks the new tab, the host shows a dialog with an **Open in new tab** button.
 3. Click any other link, for example the facility under **Produced at**. The host shows its own confirmation with the address before opening anything. Most sample addresses are fictitious, so the new tab may not load a real page.
 
 ## What follows the Working Draft
@@ -36,7 +36,7 @@ This is a demonstration for discussion, not production code. The parts the WD ma
 Two details worth knowing:
 
 - The host keeps listening on the port after `ready`, because open-link messages for host-mediated links arrive later. Following the normative text in 3.2.1, it rejects the render only on an error message, rather than treating any message other than `ready` as an error as Example 11's handler does.
-- JSON placed in a data block has `<` written as `<`. That is the same character once parsed, so the credential is unchanged, but `</script>` inside a credential value cannot close the block. When there is no `renderProperty`, the credential block holds the credential file's own text, so it parses back equal to the file.
+- JSON placed in a data block has `<` written as `\u003c`. That is the same character once parsed, so the credential is unchanged, but `</script>` inside a credential value cannot close the block. When there is no `renderProperty`, the credential block holds the credential file's own text, so it parses back equal to the file.
 
 ## The extensions
 
@@ -46,13 +46,29 @@ Both extensions keep the WD's security model intact. The sandbox is not relaxed,
 
 The wrapper, which the host writes, defines `window.renderMethodOpenLink(pointer)`. It posts `{type: 'open-link', pointer}` on the same port as `ready`. The templates call it from a link's click handler when it exists, and otherwise leave the link alone, so in a strict renderer they behave exactly as before.
 
-The host resolves the pointer (RFC 6901) against the credential it holds, never against anything the frame supplies. It acts only when the value there is a single absolute `https:` URL string, and logs a refusal otherwise. A message that carries a URL instead of a pointer is ignored. If the URL is one of the PoC's own credentials, the host fetches it, checks the link's `digestMultibase` when the link has one, and renders it in the viewer. Any other URL needs the reader's confirmation in a host dialog, then opens with `window.open(url, '_blank', 'noopener,noreferrer')`.
+The host resolves the pointer (RFC 6901) against the credential it holds, never against anything the frame supplies. It acts only when the value there is a single absolute `https:` URL string, and logs a refusal otherwise. A message that carries a URL instead of a pointer is ignored. Every link opens in a new browser tab; there is no in-place navigation. When the address is on the PoC's own origin (a verify URL for a linked credential, for example), the host opens it with `window.open(url, '_blank')`, and if the browser blocks that, shows a dialog whose **Open in new tab** button opens it. Any other address needs the reader's confirmation in a host dialog, then opens with `window.open(url, '_blank', 'noopener,noreferrer')`.
 
 Why this shape: the template can name a place in the signed credential but can never build a URL, so it cannot encode credential data into an address or send the reader somewhere the issuer did not write. The host stays in charge of every navigation.
 
 When the host offers `renderMethodOpenLink`, a named link that it will follow (an `https:` URL with a pointer) shows only its name, with the URL as its hover title. Without the hook the templates keep the URL visible as text beside the name, because in a strict renderer the click does nothing and the reader needs the address.
 
-Code: `decideOpenLink` in `js/core.js`, `handleOpenLink` and `confirmExternal` in `js/host.js`, and the `hostFollows()` and `link()` helpers in both templates.
+Code: `decideOpenLink` and `isSameOrigin` in `js/core.js`, `handleOpenLink`, `openOwnTab` and `confirmLink` in `js/host.js`, and the `hostFollows()` and `link()` helpers in both templates.
+
+### The verify URL
+
+In UNTP practice a link to another credential is already a verify-page address, built when the credential is issued: the resolver's target, pointing at the reference implementation's verify page with the direct query parameters `uri` (the credential's URL), `digestMultibase` (its digest) and optionally `decryptionKey`. The PoC mirrors those direct parameters (not the deprecated `?q={"payload":...}` form):
+
+```
+https://untp-render-method-poc.vercel.app/verify?uri=<encodeURIComponent(credential URL)>&digestMultibase=<u...>&decryptionKey=<optional>
+```
+
+The passport's related-document link is such a URL for the hosted DCC, with `mediaType` `text/html` because it is a web page; the credential's digest travels in the URL, so the link object carries no `digestMultibase` of its own. `scripts/build-digests.mjs` builds it from `BASE_URL` and the DCC's digest.
+
+When the page loads with `uri` in its query, the host fetches that address (following redirects, with `Accept: application/vc, application/ld+json;q=0.9, application/json;q=0.8`, no cookies and no referrer), checks `digestMultibase` when given and refuses the credential on a mismatch, parses the JSON and renders it through the normal path. The activity panel logs each step, including the final URL after redirects. A fetch that fails, for example because the server does not allow cross-origin requests, is reported as an error naming the likely cause. When `decryptionKey` is present, the page says encrypted credentials are out of scope for this PoC and fetches nothing.
+
+The picker also navigates to each credential's verify URL, so every rendered credential has an address that can be shared, and the browser's back button moves between them. `/verify` is served by the same `index.html` through a rewrite in `vercel.json` (and in `serve.json` for `npx serve`). Any static server without rewrites can use `index.html?uri=...` with the same parameters.
+
+Code: `buildVerifyUrl`, `parseVerifyParams` and `acceptCredentialBytes` in `js/core.js`, `loadFromQuery` in `js/host.js`.
 
 ### Host-prefetched images
 
@@ -73,6 +89,8 @@ Code: `planRenderResources` in `js/core.js`, `prefetchImages` in `js/host.js`, a
 ## Limits and simplifications
 
 - Signatures are not verified. The credentials are unsigned samples.
+- Encrypted credentials are not supported: a verify URL with `decryptionKey` is refused without fetching.
+- The verify page fetches whatever `https:` address its `uri` names, as the reference implementation's does. A template it renders still runs only in the sandboxed frame.
 - `renderProperty` filtering is a simplified stand-in for the `selectJsonLd` algorithm the WD names (Data Integrity ECDSA Cryptosuites v1.0, section 3.4.13). It keeps the root `@context`, `id` and `type` and copies each selected value to the same position. The samples do not use `renderProperty`.
 - The WD makes a template's `digestMultibase` optional. This PoC fetches only digest-pinned templates and refuses others.
 - The WD recommends protecting the privacy of template requests, for example with Oblivious HTTP (2.2.2.1). This PoC fetches directly, without cookies or a referrer.
@@ -85,18 +103,18 @@ Templates (`templates/`): the changes are marked with `// PoC extension: host-me
 Credentials (`credentials/`), edited for the PoC:
 
 - Both: `renderMethod.template` points at the PoC-hosted template with its digest, and `@context` gains the inline `renderResource` entry.
-- Passport: the product image moved from an embedded `data:` URL to `images/cathode-product.png` (the same image, decoded) with a digest; the render method declares `renderResource`; the related conformity credential link points at the PoC-hosted `credentials/dcc-cathode.json` with `mediaType` `application/vc` and a digest.
+- Passport: the product image moved from an embedded `data:` URL to `images/cathode-product.png` (the same image, decoded) with a digest; the render method declares `renderResource`; the related conformity credential link is the PoC verify URL for `credentials/dcc-cathode.json`, carrying the DCC's digest, with `mediaType` `text/html` and the original `linkType`.
 - Both: the em-dash characters in sample values (names and link names) were replaced with " - ".
 
 ## Run it locally
 
-Any static file server works, for example:
+Any static file server works. `npx serve` also reads `serve.json`, which serves `/verify`:
 
 ```sh
 npx serve .
 ```
 
-Then open the address it prints. The credentials name their template, image and linked credential under the production address. When the page is served from another origin, the host fetches those files from the current origin instead. This mapping happens in one place, `toFetchUrl` in `js/config.js`, and changes only where the host fetches from, never the URLs in the credential.
+Then open the address it prints. The credentials name their template, image and linked credential under the production address. When the page is served from another origin, the host fetches those files from the current origin instead. This mapping happens in one place, `toFetchUrl` in `js/config.js`, and changes only where the host fetches from and which origin counts as the PoC's own when a link is opened, never the URLs in the credential. On a server without rewrites, use `index.html?uri=...` instead of `/verify?uri=...`.
 
 Opening `index.html` straight from the file system does not work, because browsers do not load JavaScript modules from `file:` URLs.
 
@@ -107,11 +125,11 @@ node scripts/test.mjs
 node scripts/build-digests.mjs --check
 ```
 
-`scripts/test.mjs` uses Node built-ins only. It checks pointer resolution and the host-mediated link refusal rules, the digest computation against the digests recorded in the credentials, the wrapper's credential block and escaping, the host-prefetched image `renderResource` rules, and runs the real wrapper script and both templates against a small DOM stand-in to confirm that every credential link sends the pointer of its own URL and that the image path and its fallback work. It is not a browser test: the sandbox and CSP behaviour can only be observed in a browser.
+`scripts/test.mjs` uses Node built-ins only. It checks pointer resolution and the host-mediated link refusal rules, the digest computation against the digests recorded in the credentials, the wrapper's credential block and escaping, the verify URL parameters and its digest refusal, own-origin and external link handling, the host-prefetched image `renderResource` rules, and runs the real wrapper script and both templates against a small DOM stand-in to confirm that every credential link sends the pointer of its own URL and that the image path and its fallback work. It is not a browser test: the sandbox and CSP behaviour can only be observed in a browser.
 
 ## Deploy
 
-The repository is a static site with no build step. `vercel.json` sets the host page CSP header, `Access-Control-Allow-Origin: *` on `/images/*`, `/templates/*` and `/credentials/*`, the content types, and a `sandbox` CSP on the templates so that opening a template address directly in a browser does not run its script.
+The repository is a static site with no build step. `vercel.json` rewrites `/verify` and `/vocab`, sets the host page CSP header, `Access-Control-Allow-Origin: *` on `/images/*`, `/templates/*` and `/credentials/*`, the content types, and a `sandbox` CSP on the templates so that opening a template address directly in a browser does not run its script.
 
 To deploy on another domain:
 
@@ -124,16 +142,18 @@ Run `node scripts/build-digests.mjs` again after any change to a template, an im
 ## Layout
 
 ```
-index.html            host page
+index.html            host page, also served at /verify
 vocab.html            the PoC's renderResource term
 css/host.css          host page styles
-js/config.js          BASE_URL, the credential catalogue, origin mapping
+js/config.js          BASE_URL, the picker's credentials, origin mapping
 js/core.js            pointers, digests, wrapper, link and image rules (no DOM)
 js/host.js            host page controller
 templates/            the two render templates, with the extension changes
 credentials/          the two sample credentials, edited for the PoC
 images/               the product image the passport links to
 scripts/              build-digests.mjs and test.mjs
+vercel.json           headers and the /verify rewrite for Vercel
+serve.json            the /verify rewrite for npx serve
 ```
 
 ## Provenance and licence

@@ -15,16 +15,20 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
-import { BASE_URL, CATALOGUE, isCatalogueCredential, toFetchUrl } from '../js/config.js';
+import { BASE_URL, CATALOGUE, toFetchUrl } from '../js/config.js';
 import {
   WRAPPER_CSP,
   WRAPPER_SCRIPT,
+  acceptCredentialBytes,
+  buildVerifyUrl,
   buildWrapper,
   computeDigestMultibase,
   decideOpenLink,
   escapeScriptData,
   filterByRenderProperty,
+  isSameOrigin,
   parsePointer,
+  parseVerifyParams,
   planRenderResources,
   resolvePointer,
   selectHtmlRenderMethod,
@@ -45,6 +49,7 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 
 const DCC_URL = BASE_URL + '/credentials/dcc-cathode.json';
 const IMAGE_URL = BASE_URL + '/images/cathode-product.png';
+const DCC_VERIFY_URL = dpp.credentialSubject.relatedDocument[0].linkURL;
 
 let passed = 0;
 let failed = 0;
@@ -117,19 +122,71 @@ await test('Host-mediated links: pointers that do not resolve, or resolve to obj
   assert.equal(decideOpenLink(dpp, { type: 'open-link', pointer: '' }).action, 'refuse');
 });
 
-await test('Host-mediated links: the DPP relatedDocument link resolves to the PoC-hosted DCC with its digest, so the reader sees the DCC in the viewer', () => {
+await test('Host-mediated links: the DPP relatedDocument link is on the PoC origin, so the host opens it directly in a new tab', () => {
   const decision = decideOpenLink(dpp, { type: 'open-link', pointer: '/credentialSubject/relatedDocument/0/linkURL' });
   assert.equal(decision.action, 'open');
-  assert.equal(decision.url, DCC_URL);
-  assert.equal(isCatalogueCredential(decision.url), true);
-  assert.equal(decision.digestMultibase, nodeDigest(read('credentials/dcc-cathode.json')));
+  assert.equal(decision.url, DCC_VERIFY_URL);
+  assert.equal(isSameOrigin(toFetchUrl(decision.url, BASE_URL), BASE_URL), true);
+  // Served locally, the production base maps to the local origin first.
+  assert.equal(isSameOrigin(toFetchUrl(decision.url, 'http://localhost:3000'), 'http://localhost:3000'), true);
 });
 
-await test('Host-mediated links: an external link resolves to a non-catalogue URL, so the host asks the reader to confirm before opening it', () => {
+await test('Host-mediated links: a link on another origin is external, so the host asks the reader to confirm before opening it', () => {
   const decision = decideOpenLink(dpp, { type: 'open-link', pointer: '/credentialSubject/producedAtFacility/id' });
   assert.equal(decision.action, 'open');
   assert.equal(decision.url, 'https://facility-register.example.com/fac-002');
-  assert.equal(isCatalogueCredential(decision.url), false);
+  assert.equal(isSameOrigin(toFetchUrl(decision.url, BASE_URL), BASE_URL), false);
+  assert.equal(isSameOrigin('https://untp-render-method-poc.vercel.app.evil.example/verify', BASE_URL), false);
+  assert.equal(isSameOrigin('not a url', BASE_URL), false);
+});
+
+// ---------------------------------------------------------------------------
+// The verify entry point
+// ---------------------------------------------------------------------------
+
+await test('Verify URL: the DPP links to the DCC by a verify URL whose uri and digestMultibase name the hosted DCC, so the reader gets the DCC the issuer pinned', () => {
+  const url = new URL(DCC_VERIFY_URL);
+  assert.equal(url.origin + url.pathname, BASE_URL + '/verify');
+  const params = parseVerifyParams(url.search);
+  assert.deepEqual(params, { uri: DCC_URL, digestMultibase: nodeDigest(read('credentials/dcc-cathode.json')) });
+  assert.equal(DCC_VERIFY_URL, buildVerifyUrl(BASE_URL, DCC_URL, params.digestMultibase));
+  const link = dpp.credentialSubject.relatedDocument[0];
+  assert.equal(link.mediaType, 'text/html');
+  assert.equal(link.digestMultibase, undefined);
+});
+
+await test('Verify URL: an encoded uri with optional digestMultibase and decryptionKey parses back to the same values', () => {
+  const uri = 'https://resolver.example/id/01/09520123456788?linkType=dcc&x=a b&y=%2F';
+  const built = buildVerifyUrl('https://poc.example', uri, 'uEiAbc', 'key/with+chars=');
+  const params = parseVerifyParams(new URL(built).search);
+  assert.deepEqual(params, { uri, digestMultibase: 'uEiAbc', decryptionKey: 'key/with+chars=' });
+  assert.deepEqual(parseVerifyParams('?uri=' + encodeURIComponent(DCC_URL)), { uri: DCC_URL });
+});
+
+await test('Verify URL: a missing, empty, repeated, relative or non-https uri, or an empty digest, is not used', () => {
+  assert.equal(parseVerifyParams(''), null);
+  assert.equal(parseVerifyParams('?q=%7B%22payload%22%3A%7B%7D%7D'), null);
+  assert.ok(parseVerifyParams('?uri=').error);
+  assert.ok(parseVerifyParams('?uri=a&uri=b').error);
+  assert.ok(parseVerifyParams('?uri=%2Fcredentials%2Fdcc-cathode.json').error);
+  assert.ok(parseVerifyParams('?uri=' + encodeURIComponent('http://x.example/c.json')).error);
+  assert.ok(parseVerifyParams('?uri=' + encodeURIComponent(DCC_URL) + '&digestMultibase=').error);
+});
+
+await test('Verify URL: credential bytes that do not match digestMultibase are refused, so a swapped credential is not rendered', async () => {
+  const bytes = new Uint8Array(read('credentials/dcc-cathode.json'));
+  const good = await acceptCredentialBytes(bytes, nodeDigest(bytes));
+  assert.equal(good.ok, true);
+  assert.deepEqual(good.credential, dcc);
+  const changed = new Uint8Array(bytes);
+  changed[10] ^= 0x01;
+  const refused = await acceptCredentialBytes(changed, nodeDigest(bytes));
+  assert.equal(refused.ok, false);
+  assert.match(refused.reason, /digest mismatch/);
+  const unchecked = await acceptCredentialBytes(bytes);
+  assert.equal(unchecked.ok, true);
+  assert.equal(unchecked.digest, null);
+  assert.match((await acceptCredentialBytes(new TextEncoder().encode('<html>'))).reason, /not JSON/);
 });
 
 // ---------------------------------------------------------------------------
@@ -146,8 +203,7 @@ await test('WD 2.2 digest: every digest recorded in the credentials matches the 
   const pinned = [
     [dpp.renderMethod[0].template, 'templates/DigitalProductPassport-1.0.0.html'],
     [dcc.renderMethod[0].template, 'templates/DigitalConformityCredential-1.0.0.html'],
-    [dpp.credentialSubject.productImage, 'images/cathode-product.png'],
-    [dpp.credentialSubject.relatedDocument[0], 'credentials/dcc-cathode.json']
+    [dpp.credentialSubject.productImage, 'images/cathode-product.png']
   ];
   for (const [holder, path] of pinned) {
     const url = holder.id || holder.linkURL;
@@ -194,7 +250,7 @@ await test('WD 3.2.1 renderProperty: only the listed values reach the template, 
   const filtered = filterByRenderProperty(dpp, ['/issuer/name', '/credentialSubject/relatedDocument/0/linkURL']);
   assert.equal(filtered.issuer.name, dpp.issuer.name);
   assert.equal(filtered.issuer.id, undefined);
-  assert.equal(filtered.credentialSubject.relatedDocument[0].linkURL, DCC_URL);
+  assert.equal(filtered.credentialSubject.relatedDocument[0].linkURL, DCC_VERIFY_URL);
   assert.equal(filtered.credentialSubject.name, undefined);
   assert.deepEqual(filtered['@context'], dpp['@context']);
 });
@@ -466,7 +522,7 @@ for (const [label, template, credential, text] of [
 await test('DPP template, host-mediated links: the Related Documents section links the DCC, so the reader can click through to it', async () => {
   const frame = await runFrame({ template: 'templates/DigitalProductPassport-1.0.0.html', credentialText: dppText, resources: {} });
   assert.ok(frame.rootNode.textContent.includes('Related Documents'));
-  const anchor = frame.anchors.find((a) => a.href === DCC_URL);
+  const anchor = frame.anchors.find((a) => a.href === DCC_VERIFY_URL);
   assert.ok(anchor, 'no anchor to the DCC');
   frame.posted.length = 0;
   await frame.click(anchor);

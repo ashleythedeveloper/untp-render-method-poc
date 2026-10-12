@@ -4,13 +4,17 @@
 // of 6 October 2026 (WD); host-mediated links and host-prefetched images are
 // this PoC's extensions.
 
-import { CATALOGUE, isCatalogueCredential, toFetchUrl } from './config.js';
+import { CATALOGUE, toFetchUrl } from './config.js';
 import {
   RESOURCE_LIMITS,
+  acceptCredentialBytes,
+  buildVerifyUrl,
   buildWrapper,
   decideOpenLink,
   filterByRenderProperty,
   imageDataUrl,
+  isSameOrigin,
+  parseVerifyParams,
   planRenderResources,
   selectHtmlRenderMethod,
   templateReference,
@@ -18,13 +22,14 @@ import {
 } from './core.js';
 
 const picker = document.getElementById('picker');
-const backButton = document.getElementById('back');
 const viewerTitle = document.getElementById('viewer-title');
 const renderError = document.getElementById('render-error');
 const viewer = document.getElementById('viewer');
 const activity = document.getElementById('activity');
 const confirmDialog = document.getElementById('confirm-link');
+const confirmHeading = document.getElementById('confirm-heading');
 const confirmUrl = document.getElementById('confirm-url');
+const confirmNote = document.getElementById('confirm-note');
 const tabs = [document.getElementById('tab-rendered'), document.getElementById('tab-json')];
 const credentialJson = document.getElementById('credential-json');
 const jsonNote = document.getElementById('json-note');
@@ -34,9 +39,10 @@ const rawLink = document.getElementById('raw-link');
 
 const READY_TIMEOUT_MS = 15000;
 
-// The credential on screen, and the ones behind it for the Back control.
+// The credential on screen. Each page shows one credential, named by its
+// verify URL; moving between credentials happens in browser tabs and the
+// browser's own history.
 let current = null;
-const history = [];
 // Increases with every render, so messages and timers from a replaced frame
 // are recognised as stale.
 let renderSeq = 0;
@@ -96,64 +102,88 @@ function clearError() {
 // ---------------------------------------------------------------------------
 
 // Fetches a URL (mapped to this origin when it is under BASE_URL) without
-// cookies or a referrer. Refuses bodies over maxBytes when given.
-async function fetchBytes(url, maxBytes) {
-  const response = await fetch(toFetchUrl(url), { credentials: 'omit', referrerPolicy: 'no-referrer' });
+// cookies or a referrer, following redirects. Refuses bodies over maxBytes
+// when given. Returns the bytes and the final URL after any redirects.
+async function fetchResource(url, { maxBytes, accept } = {}) {
+  const init = { credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'follow' };
+  if (accept) init.headers = { Accept: accept };
+  const response = await fetch(toFetchUrl(url), init);
   if (!response.ok) throw new Error('HTTP ' + response.status + ' for ' + url);
   const length = Number(response.headers.get('content-length'));
   if (maxBytes && length > maxBytes) throw new Error('larger than ' + maxBytes + ' bytes (' + length + ')');
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (maxBytes && bytes.length > maxBytes) throw new Error('larger than ' + maxBytes + ' bytes (' + bytes.length + ')');
-  return bytes;
+  return { bytes, finalUrl: response.url || url };
+}
+
+async function fetchBytes(url, maxBytes) {
+  return (await fetchResource(url, { maxBytes })).bytes;
 }
 
 // ---------------------------------------------------------------------------
-// Loading a credential
+// The verify entry point: ?uri=...&digestMultibase=...&decryptionKey=...
 // ---------------------------------------------------------------------------
 
-// Loads a credential by URL and renders it. expectedDigest comes from the
-// host-mediated link that named it, when the link carries one.
-async function openCredential(url, { expectedDigest, fromLink } = {}) {
-  let bytes;
+const CREDENTIAL_ACCEPT = 'application/vc, application/ld+json;q=0.9, application/json;q=0.8';
+
+// Reads the verify parameters from the page address, fetches the credential,
+// checks digestMultibase when given and renders it through the normal path.
+async function loadFromQuery() {
+  const request = parseVerifyParams(location.search);
+  updatePicker(request && request.uri);
+  if (!request) {
+    viewer.replaceChildren(placeholder('Choose a credential above. The activity panel shows each step of the render.'));
+    return;
+  }
+  logSeparator('Verify request ' + location.pathname + location.search);
+  if (request.error) {
+    log('host', 'refused', 'Verify parameters refused: ' + request.error + '.');
+    failLoad('The page address does not name a usable credential: ' + request.error + '.');
+    return;
+  }
+  log('host', 'info', 'uri names ' + request.uri +
+    (request.digestMultibase ? ', digestMultibase ' + request.digestMultibase : ', with no digestMultibase') + '.');
+  if (request.decryptionKey) {
+    log('host', 'refused', 'decryptionKey given: encrypted credentials are out of scope for this proof of concept. Nothing was fetched or decrypted.');
+    failLoad('This link is for an encrypted credential (it carries a decryptionKey). Encrypted credentials are out of scope for this proof of concept, so it was not fetched or decrypted.');
+    return;
+  }
+  let fetched;
   try {
-    bytes = await fetchBytes(url);
+    fetched = await fetchResource(request.uri, { accept: CREDENTIAL_ACCEPT });
   } catch (err) {
-    log(fromLink ? 'links' : 'host', 'error', 'Could not fetch credential ' + url + ': ' + err.message);
-    return false;
+    const cause = err instanceof TypeError
+      ? 'the request did not complete. The server may not allow cross-origin requests (CORS), or the network or address may be unavailable'
+      : err.message;
+    log('host', 'error', 'Could not fetch ' + request.uri + ': ' + cause + '.');
+    failLoad('Could not load the credential from ' + request.uri + ': ' + cause + '.');
+    return;
   }
-  if (fromLink) {
-    if (expectedDigest) {
-      const check = await verifyDigestMultibase(bytes, expectedDigest);
-      if (!check.ok) {
-        log('links', 'refused', 'Linked credential ' + url + ' blocked: ' + check.reason);
-        return false;
-      }
-      log('links', 'ok', 'Linked credential digest matches the link\'s digestMultibase (' + expectedDigest + ').');
-    } else {
-      log('links', 'info', 'The link carries no digestMultibase, so the linked credential is loaded without a digest check.');
-    }
+  log('host', 'ok', 'Fetched ' + fetched.bytes.length + ' bytes' +
+    (fetched.finalUrl !== toFetchUrl(request.uri) ? ', redirected to ' + fetched.finalUrl : ' from ' + fetched.finalUrl) + '.');
+  const accepted = await acceptCredentialBytes(fetched.bytes, request.digestMultibase);
+  if (!accepted.ok) {
+    log('host', 'refused', 'Credential ' + request.uri + ' refused: ' + accepted.reason + '.');
+    failLoad('The credential from ' + request.uri + ' was refused: ' + accepted.reason + '.');
+    return;
   }
-  const text = new TextDecoder().decode(bytes);
-  let credential;
-  try {
-    credential = JSON.parse(text);
-  } catch (err) {
-    log('host', 'error', 'Credential ' + url + ' is not JSON: ' + err.message);
-    return false;
-  }
-  if (fromLink && current) history.push(current);
-  current = { url, text, credential };
-  updateChrome();
+  log('host', accepted.digest ? 'ok' : 'info', accepted.digest
+    ? 'Credential digest matches digestMultibase ' + request.digestMultibase + '.'
+    : 'No digestMultibase given, so the credential is loaded without a digest check.');
+  current = { url: request.uri, finalUrl: fetched.finalUrl, text: accepted.text, credential: accepted.credential };
+  viewerTitle.textContent = typeof current.credential.name === 'string' ? current.credential.name : current.url;
   await render(current);
-  return true;
 }
 
-function updateChrome() {
-  backButton.disabled = history.length === 0;
-  const name = current && typeof current.credential.name === 'string' ? current.credential.name : current ? current.url : '';
-  viewerTitle.textContent = name || 'Choose a credential to render.';
+function failLoad(message) {
+  viewerTitle.textContent = 'No credential rendered.';
+  viewer.replaceChildren();
+  showError(message);
+}
+
+function updatePicker(uri) {
   for (const button of picker.querySelectorAll('button')) {
-    button.setAttribute('aria-pressed', String(Boolean(current) && button.dataset.url === current.url));
+    button.setAttribute('aria-pressed', String(button.dataset.url === uri));
   }
 }
 
@@ -346,30 +376,53 @@ async function handleOpenLink(credential, message) {
     return;
   }
   log('links', 'info', 'open-link ' + decision.pointer + ' resolves to ' + decision.url + '.');
-  if (isCatalogueCredential(decision.url)) {
-    log('links', 'info', 'This is one of the PoC\'s own credentials: rendering it here.');
-    await openCredential(decision.url, { expectedDigest: decision.digestMultibase, fromLink: true });
+  // Every link opens in a new tab. The PoC's own pages (a verify URL for a
+  // linked credential, for example) open directly; anything else is confirmed.
+  const target = toFetchUrl(decision.url);
+  if (isSameOrigin(target, location.origin)) {
+    openOwnTab(target);
     return;
   }
-  confirmExternal(decision.url);
+  confirmLink(decision.url, false);
 }
 
-function confirmExternal(url) {
-  if (confirmDialog.open) {
-    log('links', 'ignored', 'A confirmation is already open; ignored the request to open ' + url + '.');
+// Opens one of the PoC's own pages in a new tab, without noopener because it
+// is the same application.
+function openOwnTab(target) {
+  log('links', 'info', 'The link is on this proof of concept\'s own origin: opening ' + target + ' in a new tab.');
+  const opened = window.open(target, '_blank');
+  if (opened) {
+    log('links', 'ok', 'Opened ' + target + ' in a new tab.');
     return;
   }
-  confirmUrl.textContent = url;
+  log('links', 'info', 'The browser blocked the new tab, so the host asks the reader to open it.');
+  confirmLink(target, true);
+}
+
+// The host's own dialog. For an external link it asks before opening the
+// address with noopener and noreferrer. For one of the PoC's own pages whose
+// new tab the browser blocked, it offers the button that opens it.
+function confirmLink(target, ownPage) {
+  if (confirmDialog.open) {
+    log('links', 'ignored', 'A dialog is already open; ignored the request to open ' + target + '.');
+    return;
+  }
+  confirmHeading.textContent = ownPage ? 'Open linked page?' : 'Open external link?';
+  confirmUrl.textContent = target;
+  confirmNote.textContent = ownPage
+    ? 'The credential links to another page of this proof of concept. It opens in a new tab.'
+    : 'The credential links to this address. It opens in a new tab, without a referrer and without access to this page.';
   confirmDialog.returnValue = '';
   confirmDialog.onclose = () => {
-    if (confirmDialog.returnValue === 'open') {
-      window.open(url, '_blank', 'noopener,noreferrer');
-      log('links', 'ok', 'User confirmed: opened ' + url + ' in a new tab.');
-    } else {
-      log('links', 'info', 'User cancelled opening ' + url + '.');
+    if (confirmDialog.returnValue !== 'open') {
+      log('links', 'info', 'Reader cancelled opening ' + target + '.');
+      return;
     }
+    if (ownPage) window.open(target, '_blank');
+    else window.open(target, '_blank', 'noopener,noreferrer');
+    log('links', 'ok', 'Reader confirmed: opened ' + target + ' in a new tab.');
   };
-  log('links', 'info', 'Not a PoC credential: asking the user to confirm the external link.');
+  if (!ownPage) log('links', 'info', 'Not on this proof of concept\'s origin: asking the reader to confirm the external link.');
   confirmDialog.showModal();
 }
 
@@ -458,23 +511,16 @@ for (const entry of CATALOGUE) {
   detail.className = 'detail';
   detail.textContent = entry.detail;
   button.append(label, detail);
+  // Each choice navigates to the credential's verify URL, so every rendered
+  // credential has a shareable address and the browser's back button works.
   button.addEventListener('click', () => {
-    history.length = 0;
-    openCredential(entry.url);
+    location.href = buildVerifyUrl(location.origin, entry.url);
   });
   picker.appendChild(button);
 }
-
-backButton.addEventListener('click', () => {
-  const previous = history.pop();
-  if (!previous) return;
-  current = previous;
-  updateChrome();
-  render(current);
-});
 
 document.getElementById('clear-activity').addEventListener('click', () => {
   activity.replaceChildren();
 });
 
-viewer.replaceChildren(placeholder('Choose a credential above. The activity panel shows each step of the render.'));
+loadFromQuery();

@@ -7,9 +7,9 @@
 // and recomputes their digests.
 export const BASE_URL = 'https://untp-render-method-poc.vercel.app';
 
-// The credentials this PoC hosts and knows how to render. The host offers
-// them in its picker, and a host-mediated link (a PoC extension) whose URL is
-// one of these renders the credential in the viewer instead of opening a tab.
+// The credentials this PoC hosts, offered in the host page's picker. Each
+// choice opens the credential's verify URL; the host does not treat these
+// credentials specially otherwise.
 export const CATALOGUE = [
   {
     url: BASE_URL + '/credentials/dpp-cathode.json',
@@ -34,9 +34,4 @@ export function toFetchUrl(url, origin) {
     return here + url.slice(BASE_URL.length);
   }
   return url;
-}
-
-// True when the URL is one of the PoC's own hosted credentials.
-export function isCatalogueCredential(url) {
-  return CATALOGUE.some((entry) => entry.url === url);
 }

@@ -40,7 +40,6 @@
       <h2 id="viewer-heading" class="visually-hidden">Credential viewer</h2>
       <div class="picker" role="group" aria-label="Choose a credential" id="picker"></div>
       <div class="viewer-bar">
-        <button type="button" id="back" disabled>Back</button>
         <p id="viewer-title" class="viewer-title">Choose a credential to render.</p>
       </div>
       <div class="view-tabs" role="tablist" aria-label="View">
@@ -75,7 +74,7 @@
     <form method="dialog">
       <h2 id="confirm-heading">Open external link?</h2>
       <p id="confirm-url" class="confirm-url"></p>
-      <p class="confirm-note">The credential links to this address. It opens in a new tab, without a referrer and without access to this page.</p>
+      <p id="confirm-note" class="confirm-note">The credential links to this address. It opens in a new tab, without a referrer and without access to this page.</p>
       <div class="confirm-actions">
         <button value="cancel">Cancel</button>
         <button value="open" class="primary">Open in new tab</button>

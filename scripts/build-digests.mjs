@@ -8,7 +8,11 @@
 // repository; its origin is replaced with BASE_URL whatever it was before. The
 // PoC vocabulary URL (/vocab#term, served from vocab.html) is rewritten the
 // same way. An object that holds a hosted file URL in `id` or `linkURL` gets
-// `digestMultibase` set to the digest of the local file. A credential that pins another credential
+// `digestMultibase` set to the digest of the local file.
+//
+// A PoC verify URL (/verify?uri=<hosted credential>&digestMultibase=...) is
+// rebuilt from BASE_URL with the digest of the credential it names, keeping
+// any decryptionKey. A credential that pins another credential, either way,
 // is written after the one it pins, so its digest covers the final bytes.
 //
 // Usage: node scripts/build-digests.mjs [--check]
@@ -18,6 +22,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { buildVerifyUrl, parseVerifyParams } from '../js/core.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const checkOnly = process.argv.includes('--check');
@@ -65,6 +71,24 @@ function rebased(value) {
   return null;
 }
 
+// Returns a PoC verify URL rebuilt onto BASE_URL with the current digest of
+// the credential it names, or null when the value is not one.
+function rebuiltVerifyUrl(value, file) {
+  const url = parseHttps(value);
+  if (!url || url.pathname !== '/verify') return null;
+  const params = parseVerifyParams(url.search);
+  if (!params || params.error) return null;
+  const local = hostedPath(params.uri);
+  if (!local || !local.startsWith('credentials/') || local === file) return null;
+  processCredential(local);
+  return buildVerifyUrl(BASE_URL, BASE_URL + '/' + local, digestMultibase(localBytes(local)), params.decryptionKey);
+}
+
+// Rewrites one string value, or returns null to leave it.
+function rewrite(value, file) {
+  return rebuiltVerifyUrl(value, file) || rebased(value);
+}
+
 const credentialFiles = readdirSync(join(root, 'credentials'))
   .filter((name) => name.endsWith('.json'))
   .map((name) => 'credentials/' + name);
@@ -90,7 +114,7 @@ function processCredential(file) {
   (function walk(node) {
     if (Array.isArray(node)) {
       node.forEach((item, i) => {
-        const url = rebased(item);
+        const url = rewrite(item, file);
         if (url) node[i] = url;
         else walk(item);
       });
@@ -98,7 +122,7 @@ function processCredential(file) {
     }
     if (!node || typeof node !== 'object') return;
     for (const key of Object.keys(node)) {
-      const url = rebased(node[key]);
+      const url = rewrite(node[key], file);
       if (url) node[key] = url;
       else walk(node[key]);
     }
