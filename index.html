@@ -18,7 +18,7 @@
   <header class="page-header">
     <h1>UNTP render method proof of concept</h1>
     <p>
-      This page renders UN Transparency Protocol credentials with the W3C
+      This page renders <a href="https://untp.unece.org" rel="noopener noreferrer">UN Transparency Protocol</a> credentials with the W3C
       <code>html</code> render suite as specified in
       <a href="https://www.w3.org/TR/2026/WD-vc-render-method-20261006/" rel="noopener noreferrer">Verifiable Credential Rendering Methods v1.0, Working Draft of 6 October 2026</a>,
       plus two extensions: host-mediated links and host-prefetched images. The
@@ -43,8 +43,23 @@
         <button type="button" id="back" disabled>Back</button>
         <p id="viewer-title" class="viewer-title">Choose a credential to render.</p>
       </div>
-      <p id="render-error" class="render-error" role="alert" hidden></p>
-      <div id="viewer" class="viewer"></div>
+      <div class="view-tabs" role="tablist" aria-label="View">
+        <button type="button" role="tab" id="tab-rendered" aria-selected="true" aria-controls="panel-rendered">Rendered view</button>
+        <button type="button" role="tab" id="tab-json" aria-selected="false" aria-controls="panel-json" tabindex="-1">Credential JSON</button>
+      </div>
+      <div id="panel-rendered" role="tabpanel" aria-labelledby="tab-rendered">
+        <p id="render-error" class="render-error" role="alert" hidden></p>
+        <div id="viewer" class="viewer"></div>
+      </div>
+      <div id="panel-json" role="tabpanel" aria-labelledby="tab-json" hidden>
+        <div class="json-bar">
+          <button type="button" id="copy-json" disabled>Copy</button>
+          <a id="raw-link" class="raw-link" href="#" rel="noopener noreferrer" hidden>Raw file</a>
+          <span id="copy-status" class="copy-status" role="status"></span>
+        </div>
+        <p id="json-note" class="json-note" hidden></p>
+        <pre id="credential-json" class="credential-json" tabindex="0" aria-label="Credential JSON"><code>Choose a credential to see its JSON.</code></pre>
+      </div>
     </section>
 
     <section class="activity-column" aria-labelledby="activity-heading">
@@ -71,7 +86,7 @@
   <footer class="page-footer">
     <p>
       Templates and samples derive from UN/CEFACT
-      <a href="https://github.com/uncefact/spec-untp" rel="noopener noreferrer">spec-untp</a>
+      <a href="https://opensource.unicc.org/un/unece/uncefact/spec-untp" rel="noopener noreferrer">spec-untp</a>
       and <a href="https://github.com/uncefact/tests-untp" rel="noopener noreferrer">tests-untp</a>.
       <a href="vocab.html">PoC vocabulary</a>.
     </p>

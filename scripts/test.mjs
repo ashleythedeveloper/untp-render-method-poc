@@ -432,6 +432,28 @@ for (const [label, template, credential, text] of [
     assert.deepEqual(unlinked, label === 'DPP' ? ['https://untp.unece.org'] : []);
   });
 
+  await test(label + ' template, host-mediated links: with the host hook a followed link shows its name only, with the URL as its title', async () => {
+    const frame = await runFrame({ template, credentialText: text, resources: {} });
+    const followed = frame.anchors.filter((a) => (a.listeners.click || []).length && a.href.startsWith('https://') && a.textContent !== a.href && !a.textContent.endsWith(a.href));
+    assert.ok(followed.length >= 3, 'expected several named https links, found ' + followed.length);
+    const urlTexts = all(frame.rootNode, (n) => n.className === 'id-text').map((n) => n.textContent);
+    for (const anchor of followed) {
+      assert.equal(anchor.title, anchor.href);
+      assert.equal(urlTexts.includes(anchor.href), false, 'URL still shown as text: ' + anchor.href);
+    }
+  });
+
+  await test(label + ' template, host-mediated links: without the host hook every named link keeps its URL as visible text, because the click does nothing in a strict renderer', async () => {
+    const frame = await runFrame({ template, credentialText: text, resources: {}, withWrapper: false });
+    const named = frame.anchors.filter((a) => (a.listeners.click || []).length && a.textContent !== a.href && !a.textContent.endsWith(a.href));
+    assert.ok(named.length >= 3);
+    const urlTexts = all(frame.rootNode, (n) => n.className === 'id-text').map((n) => n.textContent);
+    for (const anchor of named) {
+      assert.equal(urlTexts.includes(anchor.href), true, 'URL not shown as text: ' + anchor.href);
+      assert.equal(anchor.title, undefined);
+    }
+  });
+
   await test(label + ' template, host-mediated links: without renderMethodOpenLink a click is left to the anchor, so strict renderers degrade gracefully', async () => {
     const frame = await runFrame({ template, credentialText: text, resources: {}, withWrapper: false });
     const linked = frame.anchors.filter((a) => (a.listeners.click || []).length);

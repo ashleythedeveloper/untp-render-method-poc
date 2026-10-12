@@ -25,6 +25,12 @@ const viewer = document.getElementById('viewer');
 const activity = document.getElementById('activity');
 const confirmDialog = document.getElementById('confirm-link');
 const confirmUrl = document.getElementById('confirm-url');
+const tabs = [document.getElementById('tab-rendered'), document.getElementById('tab-json')];
+const credentialJson = document.getElementById('credential-json');
+const jsonNote = document.getElementById('json-note');
+const copyButton = document.getElementById('copy-json');
+const copyStatus = document.getElementById('copy-status');
+const rawLink = document.getElementById('raw-link');
 
 const READY_TIMEOUT_MS = 15000;
 
@@ -167,6 +173,7 @@ async function render(entry) {
   log('host', 'info', 'Unsigned sample credential: signature verification is out of scope for this PoC.');
 
   const { credential, text } = entry;
+  showCredentialJson(entry, text, false);
   const method = selectHtmlRenderMethod(credential);
   if (!method) return fail(seq, 'wd', 'The credential has no renderMethod with type SuiteRenderMethod and renderSuite "html".');
   log('wd', 'ok', 'Selected render method "' + (method.name || 'html') + '" (SuiteRenderMethod, renderSuite html).');
@@ -199,6 +206,7 @@ async function render(entry) {
   let credentialText = text;
   if (method.renderProperty !== undefined) {
     credentialText = JSON.stringify(filterByRenderProperty(credential, method.renderProperty));
+    showCredentialJson(entry, credentialText, true);
     log('wd', 'info', 'Filtered the credential to renderProperty ' + JSON.stringify(method.renderProperty) + ' (simplified selectJsonLd).');
   } else {
     log('wd', 'info', 'No renderProperty: the template receives the whole credential, unmodified.');
@@ -363,6 +371,76 @@ function confirmExternal(url) {
   };
   log('links', 'info', 'Not a PoC credential: asking the user to confirm the external link.');
   confirmDialog.showModal();
+}
+
+// ---------------------------------------------------------------------------
+// Credential JSON view
+// ---------------------------------------------------------------------------
+
+// Shows the credential JSON the host passes to the frame (credentialText),
+// pretty-printed. It reads the host's copy and never touches the frame.
+function showCredentialJson(entry, credentialText, filtered) {
+  if (entry !== current) return;
+  let pretty;
+  try {
+    pretty = JSON.stringify(JSON.parse(credentialText), null, 2);
+  } catch {
+    pretty = credentialText;
+  }
+  const code = document.createElement('code');
+  code.textContent = pretty;
+  credentialJson.replaceChildren(code);
+  jsonNote.hidden = !filtered;
+  jsonNote.textContent = filtered
+    ? 'Filtered by renderProperty: this is what the template receives. The raw file holds the full credential.'
+    : '';
+  rawLink.href = toFetchUrl(entry.url);
+  rawLink.textContent = 'Raw file: ' + entry.url;
+  rawLink.hidden = false;
+  copyButton.disabled = false;
+  copyStatus.textContent = '';
+}
+
+copyButton.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(credentialJson.textContent);
+    copyStatus.textContent = 'Copied.';
+  } catch {
+    const range = document.createRange();
+    range.selectNodeContents(credentialJson);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    copyStatus.textContent = 'Copy is not available here; the JSON is selected instead.';
+  }
+});
+
+// Tabs follow the WAI-ARIA tabs pattern: one tab in the Tab order, arrow keys,
+// Home and End move between tabs, and activation shows its panel.
+function selectTab(tab, focus) {
+  for (const t of tabs) {
+    const selected = t === tab;
+    t.setAttribute('aria-selected', String(selected));
+    t.tabIndex = selected ? 0 : -1;
+    document.getElementById(t.getAttribute('aria-controls')).hidden = !selected;
+  }
+  if (focus) tab.focus();
+}
+
+for (const tab of tabs) {
+  tab.addEventListener('click', () => selectTab(tab, false));
+  tab.addEventListener('keydown', (event) => {
+    const i = tabs.indexOf(tab);
+    let next = null;
+    if (event.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
+    else if (event.key === 'ArrowLeft') next = tabs[(i - 1 + tabs.length) % tabs.length];
+    else if (event.key === 'Home') next = tabs[0];
+    else if (event.key === 'End') next = tabs[tabs.length - 1];
+    if (next) {
+      event.preventDefault();
+      selectTab(next, true);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------

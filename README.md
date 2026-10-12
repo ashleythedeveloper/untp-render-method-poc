@@ -1,11 +1,13 @@
 # UNTP render method proof of concept
 
-A static web page that renders UN Transparency Protocol (UNTP) credentials with the W3C `html` render suite, as specified in [Verifiable Credential Rendering Methods v1.0, W3C Working Draft of 6 October 2026](https://www.w3.org/TR/2026/WD-vc-render-method-20261006/) (the WD below). It adds two extensions, named the same way throughout the code and the page:
+A static web page that renders [UN Transparency Protocol](https://untp.unece.org) (UNTP) credentials with the W3C `html` render suite, as specified in [Verifiable Credential Rendering Methods v1.0, W3C Working Draft of 6 October 2026](https://www.w3.org/TR/2026/WD-vc-render-method-20261006/) (the WD below). It adds two extensions, named the same way throughout the code and the page:
 
 - **Host-mediated links.** Clicking a link in a rendered credential sends the host page a JSON Pointer into the credential. The host resolves the pointer itself and either renders the linked credential (from the Digital Product Passport to its Digital Conformity Credential) or asks the reader to confirm and opens the external address in a new tab. The template frame never navigates.
 - **Host-prefetched images.** Before rendering, the host fetches the images the issuer lists in the render method's `renderResource` property, checks each one against its `digestMultibase`, and passes them to the template in a separate data block keyed by the original URL. The credential the template receives is the issuer's credential, unmodified.
 
 An activity panel beside the rendered credential lists every step: the template fetch and digest check, each declared image and what happened to it, and each link request and how the host handled it.
+
+The **Credential JSON** tab above the viewer shows the credential currently rendered, pretty-printed: the same object the host passes to the frame. It has a Copy button and a link to the raw file, and it follows linked credentials and **Back**. When a render method has `renderProperty`, the tab shows the filtered credential the frame receives and says so.
 
 The sample credentials are unsigned. Signature verification is out of scope for this proof of concept, and the page says so.
 
@@ -48,7 +50,9 @@ The host resolves the pointer (RFC 6901) against the credential it holds, never 
 
 Why this shape: the template can name a place in the signed credential but can never build a URL, so it cannot encode credential data into an address or send the reader somewhere the issuer did not write. The host stays in charge of every navigation.
 
-Code: `decideOpenLink` in `js/core.js`, `handleOpenLink` and `confirmExternal` in `js/host.js`, and the `link()` helpers in both templates.
+When the host offers `renderMethodOpenLink`, a named link that it will follow (an `https:` URL with a pointer) shows only its name, with the URL as its hover title. Without the hook the templates keep the URL visible as text beside the name, because in a strict renderer the click does nothing and the reader needs the address.
+
+Code: `decideOpenLink` in `js/core.js`, `handleOpenLink` and `confirmExternal` in `js/host.js`, and the `hostFollows()` and `link()` helpers in both templates.
 
 ### Host-prefetched images
 
@@ -76,7 +80,7 @@ Code: `planRenderResources` in `js/core.js`, `prefetchImages` in `js/host.js`, a
 
 ## Changes from the upstream templates and samples
 
-Templates (`templates/`): the changes are marked with `// PoC extension: host-mediated links` or `// PoC extension: host-prefetched images`. Every link built from a credential value now carries the JSON Pointer of that value. The passport template also gains a **Related Documents** section, because the upstream template does not show `relatedDocument` and the passport's link to its conformity credential lives there. Layout, labels, text-only rendering and the `renderMethodReady` calls are unchanged.
+Templates (`templates/`): the changes are marked with `// PoC extension: host-mediated links` or `// PoC extension: host-prefetched images`. Every link built from a credential value now carries the JSON Pointer of that value, and shows its name alone when the host follows it. The passport template also gains a **Related Documents** section, because the upstream template does not show `relatedDocument` and the passport's link to its conformity credential lives there. Otherwise, layout, labels, text-only rendering and the `renderMethodReady` calls are unchanged.
 
 Credentials (`credentials/`), edited for the PoC:
 

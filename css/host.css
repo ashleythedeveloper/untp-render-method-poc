@@ -224,6 +224,69 @@ button.primary {
   overflow-wrap: anywhere;
 }
 
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.view-tabs [role="tab"] {
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  margin-bottom: -1px;
+}
+
+.view-tabs [role="tab"][aria-selected="true"] {
+  background: var(--surface);
+  border-color: var(--border);
+  font-weight: 600;
+}
+
+.view-tabs [role="tab"]:focus-visible,
+.credential-json:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.json-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.raw-link {
+  overflow-wrap: anywhere;
+}
+
+.copy-status,
+.json-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.json-note {
+  margin: 0 0 8px;
+}
+
+.credential-json {
+  margin: 0;
+  padding: 12px;
+  max-height: 78vh;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  white-space: pre;
+}
+
 .render-error {
   margin: 0 0 8px;
   padding: 8px 12px;
