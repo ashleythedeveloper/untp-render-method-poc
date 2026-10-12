@@ -13,6 +13,8 @@ The **Template HTML** tab shows the render template for the credential on screen
 
 The sample credentials are unsigned. Signature verification is out of scope for this proof of concept, and the page says so.
 
+Source code: [github.com/ashleythedeveloper/untp-render-method-poc](https://github.com/ashleythedeveloper/untp-render-method-poc).
+
 This is a demonstration for discussion, not production code. The parts the WD makes normative are implemented as written; the extensions are clearly separated so they can be judged on their own.
 
 ## What to try
